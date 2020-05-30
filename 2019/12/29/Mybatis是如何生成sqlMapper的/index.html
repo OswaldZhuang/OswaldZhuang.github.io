@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+  <meta charset="utf-8">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="Cache-Control" content="no-transform" />
+  <meta http-equiv="Cache-Control" content="no-siteapp" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no,email=no,adress=no">
+  <!-- Color theme for statusbar -->
+  <meta name="theme-color" content="#000000" />
+  <!-- 强制页面在当前窗口以独立页面显示,防止别人在框架里调用页面 -->
+  <meta http-equiv="window-target" content="_top" />
+  
+  
+  <title>Mybatis是如何生成SqlMapper的 | Oswald</title>
+  <meta name="description" content="mybatis 3.5.4  着重讨论一下通过注解，interface上面的sql语句是怎么一步一步被解析最终能够执行的。 首先，mybatis所有声明的sql到mapper的转化都是在初始化阶段完成的。mybatis的执行入口是SqlSession，SqlSession由SqlSessionFactory这个工厂类创建，而SqlSessionFactory是由SqlSessionFactory">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mybatis是如何生成SqlMapper的">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;29&#x2F;Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90sqlMapper%E7%9A%84&#x2F;index.html">
+<meta property="og:site_name" content="Oswald">
+<meta property="og:description" content="mybatis 3.5.4  着重讨论一下通过注解，interface上面的sql语句是怎么一步一步被解析最终能够执行的。 首先，mybatis所有声明的sql到mapper的转化都是在初始化阶段完成的。mybatis的执行入口是SqlSession，SqlSession由SqlSessionFactory这个工厂类创建，而SqlSessionFactory是由SqlSessionFactory">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2020-03-04T08:05:35.301Z">
+<meta name="twitter:card" content="summary">
+  <!-- Canonical links -->
+  <link rel="canonical" href="http://yoursite.com/2019/12/29/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90sqlMapper%E7%9A%84/index.html">
+  
+    <link rel="alternate" href="/atom.xml" title="Oswald" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png" type="image/x-icon">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+  
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitment@0.0.3/style/default.min.css">
+  
+  
+  
+</head>
+
+
+<body class="main-center" itemscope itemtype="http://schema.org/WebPage">
+  <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+  <div class="slimContent">
+    <div class="navbar-header">
+      
+      
+      <div class="profile-block text-center">
+        <a id="avatar" href="https://github.com/OswaldZhuang" target="_blank">
+          <img class="img-circle img-rotate" src="/images/avatar.jpg" width="200" height="200">
+        </a>
+        <h2 id="name" class="hidden-xs hidden-sm">Oswald Zhuang</h2>
+        <h3 id="title" class="hidden-xs hidden-sm hidden-md">Java开发工程师</h3>
+        <small id="location" class="text-muted hidden-xs hidden-sm"><i class="icon icon-map-marker"></i> Shanghai, China</small>
+      </div>
+      
+      <div class="search" id="search-form-wrap">
+
+    <form class="search-form sidebar-form">
+        <div class="input-group">
+            <input type="text" class="search-form-input form-control" placeholder="Search" />
+            <span class="input-group-btn">
+                <button type="submit" class="search-form-submit btn btn-flat" onclick="return false;"><i class="icon icon-search"></i></button>
+            </span>
+        </div>
+    </form>
+    <div class="ins-search">
+  <div class="ins-search-mask"></div>
+  <div class="ins-search-container">
+    <div class="ins-input-wrapper">
+      <input type="text" class="ins-search-input" placeholder="Type something..." x-webkit-speech />
+      <button type="button" class="close ins-close ins-selectable" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+    </div>
+    <div class="ins-section-wrapper">
+      <div class="ins-section-container"></div>
+    </div>
+  </div>
+</div>
+
+
+</div>
+      <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <nav id="main-navbar" class="collapse navbar-collapse" itemscope itemtype="http://schema.org/SiteNavigationElement" role="navigation">
+      <ul class="nav navbar-nav main-nav ">
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/.">
+            
+            <i class="icon icon-home-fill"></i>
+            
+            <span class="menu-title">Home</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives">
+            
+            <i class="icon icon-archives-fill"></i>
+            
+            <span class="menu-title">Archives</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories">
+            
+            <i class="icon icon-folder"></i>
+            
+            <span class="menu-title">Categories</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags">
+            
+            <i class="icon icon-tags"></i>
+            
+            <span class="menu-title">Tags</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-repository">
+          <a href="/repository">
+            
+            <i class="icon icon-project"></i>
+            
+            <span class="menu-title">Repository</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-books">
+          <a href="/books">
+            
+            <i class="icon icon-book-fill"></i>
+            
+            <span class="menu-title">Books</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-links">
+          <a href="/links">
+            
+            <i class="icon icon-friendship"></i>
+            
+            <span class="menu-title">Links</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about">
+            
+            <i class="icon icon-cup-fill"></i>
+            
+            <span class="menu-title">About</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    </nav>
+  </div>
+</header>
+
+  
+    <aside class="sidebar" itemscope itemtype="http://schema.org/WPSideBar">
+  <div class="slimContent">
+    
+      <div class="widget">
+    <h3 class="widget-title">Board</h3>
+    <div class="widget-body">
+        <div id="board">
+            <div class="content">
+                <p>天青色等烟雨</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget-body">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%84%9F%E6%82%9F/">感悟</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><span class="category-list-count">10</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mysql/">mysql</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a><span class="category-list-count">3</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%97%85%E8%A1%8C/">旅行</a><span class="category-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+
+    
+      
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Archive</h3>
+    <div class="widget-body">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/02/">二月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/01/">一月 2020</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/12/">十二月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/11/">十一月 2019</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/10/">十月 2019</a><span class="archive-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget-body">
+      <ul class="recent-post-list list-unstyled no-thumbnail">
+        
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/27/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%882%EF%BC%89/" class="title">Spring对bean的加载顺序（2）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-26T20:52:47.000Z" itemprop="datePublished">2020-02-26</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/" class="title">Spring对bean的加载顺序（1）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-23T15:58:21.000Z" itemprop="datePublished">2020-02-23</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" class="title">Spring bean的获取过程</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/" class="title">Mybatis的缓存机制</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/01/28/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90%E7%BB%93%E6%9E%9C%E9%9B%86%E7%9A%84/" class="title">Mybatis是如何解析结果集的</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-01-27T16:43:25.000Z" itemprop="datePublished">2020-01-27</time>
+              </p>
+            </div>
+          </li>
+          
+      </ul>
+    </div>
+  </div>
+  
+
+    
+  </div>
+</aside>
+
+  
+  
+<main class="main" role="main">
+  <div class="content">
+  <article id="post-Mybatis是如何生成sqlMapper的" class="article article-type-post" itemscope itemtype="http://schema.org/BlogPosting">
+    
+    <div class="article-header">
+      
+        
+  
+    <h1 class="article-title" itemprop="name">
+      Mybatis是如何生成SqlMapper的
+    </h1>
+  
+
+      
+      <div class="article-meta">
+        <span class="article-date">
+    <i class="icon icon-calendar-check"></i>
+	<a href="/2019/12/29/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90sqlMapper%E7%9A%84/" class="article-date">
+	  <time datetime="2019-12-29T14:57:00.000Z" itemprop="datePublished">2019-12-29</time>
+	</a>
+</span>
+        
+  <span class="article-category">
+    <i class="icon icon-folder"></i>
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a>►<a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+  </span>
+
+        
+
+        
+	<span class="article-read hidden-xs">
+	    <i class="icon icon-eye-fill" aria-hidden="true"></i>
+	    <span id="busuanzi_container_page_pv">
+			<span id="busuanzi_value_page_pv">0</span>
+		</span>
+	</span>
+
+
+        <span class="post-comment"><i class="icon icon-comment"></i> <a href="/2019/12/29/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90sqlMapper%E7%9A%84/#comments" class="article-comment-link">Comments</a></span>
+        
+	
+		<span class="post-wordcount hidden-xs" itemprop="wordCount">Word Count: 1.4k(words)</span>
+	
+	
+		<span class="post-readcount hidden-xs" itemprop="timeRequired">Read Count: 5(minutes)</span>
+	
+
+      </div>
+    </div>
+    <div class="article-entry marked-body" itemprop="articleBody">
+      
+        <blockquote>
+<p>mybatis 3.5.4</p>
+</blockquote>
+<p>着重讨论一下通过注解，interface上面的sql语句是怎么一步一步被解析最终能够执行的。</p>
+<p>首先，mybatis所有声明的sql到mapper的转化都是在初始化阶段完成的。<br>mybatis的执行入口是SqlSession，SqlSession由SqlSessionFactory这个工厂类创建，而SqlSessionFactory<br>是由SqlSessionFactoryBuilder的build方法产生的。</p>
+<p>细看该方法（截取部分）：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">SqlSessionFactoryBuilder</span><br><span class="line"></span><br><span class="line">public SqlSessionFactory build(Reader reader, String environment, Properties properties) &#123;</span><br><span class="line">    XMLConfigBuilder parser = new XMLConfigBuilder(reader, environment, properties);</span><br><span class="line">    return build(parser.parse());</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>实际上，第4行的parser.parse()返回的对象是Configuration，这也是mybatis的核心对像。<br>进入到parse()方法，再进到parseConfiguration方法，可以看到他是对xml中的configuration节点进行解析，并且设置数据到对象中<br>此时，我们关心的关键来了 – mapperElement，跳进去</p>
+<p>方法还是比较长的，我们挑重点说：<br>大意是遍历mappers节点的所有子节点，如果子节点是package，那么Configuration中添加包名，否则的话会把resource，url，class等<br>标签拿出来，针对单个mapper做处理，我们先只看第一种情况，如何添加包名从而添加mapper</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">XMLConfigBuilder</span><br><span class="line"></span><br><span class="line">if (&quot;package&quot;.equals(child.getName())) &#123;</span><br><span class="line">          String mapperPackage = child.getStringAttribute(&quot;name&quot;);</span><br><span class="line">          configuration.addMappers(mapperPackage);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再进一步，跳进addMappers方法中，可以看出，所有的mapper类都是被添加到MapperRegistry这样的注册类中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Configuration</span><br><span class="line"></span><br><span class="line">public void addMappers(String packageName) &#123;</span><br><span class="line">    mapperRegistry.addMappers(packageName);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>继续跳进去，可以发现核心方法，这里借用了一个ResolverUtil的工具类，目的是为了找到包下面的所有class，这里的superType是Object<br>整个方法作用是找到所有是superType子类的类。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">MapperRegistry</span><br><span class="line"></span><br><span class="line">public void addMappers(String packageName, Class&lt;?&gt; superType) &#123;</span><br><span class="line">    ResolverUtil&lt;Class&lt;?&gt;&gt; resolverUtil = new ResolverUtil&lt;&gt;();</span><br><span class="line">    resolverUtil.find(new ResolverUtil.IsA(superType), packageName);</span><br><span class="line">    Set&lt;Class&lt;? extends Class&lt;?&gt;&gt;&gt; mapperSet = resolverUtil.getClasses();</span><br><span class="line">    for (Class&lt;?&gt; mapperClass : mapperSet) &#123;</span><br><span class="line">      addMapper(mapperClass);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>先暂时不管类是怎么找出来的，将目光聚焦在addMapper方法上，主要过程如下，knownMapper，顾名思义是一个缓存，存储的是已知的Mapper，<br>而且不是本身的Mapper类，而是代理的工厂类，我们通过注解方式声明的Mapper会通过该代理工厂最终会转化为代理的对象。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">MapperRegistry</span><br><span class="line"></span><br><span class="line">public &lt;T&gt; void addMapper(Class&lt;T&gt; type) &#123;</span><br><span class="line">    knownMappers.put(type, new MapperProxyFactory&lt;&gt;(type));</span><br><span class="line">    MapperAnnotationBuilder parser = new MapperAnnotationBuilder(config, type);</span><br><span class="line">    parser.parse();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>继续，这里又产生了一个parser，它的主要用途是解析Mapper的方法上的注解，进入parse方法，可以看到该方法真正的对各种注解进行解析，<br>parseCache解析的是@CacheNamespace，parseCacheRef解析的是@CacheNamespaceRef，这些是类级别的注解。<br>而parseStatement就是解析方法级别的各种注解<br>可以注意到，方法注解的解析只处理非”桥接”方法。（范型的继承和实现，在类型擦除的过程中，编译器会生成”桥接”方法，该方法实际是一个兼容性<br>的方法，具体可阅读该文章 <a href="https://docs.oracle.com/javase/tutorial/java/generics/bridgeMethods.html）" target="_blank" rel="noopener">https://docs.oracle.com/javase/tutorial/java/generics/bridgeMethods.html）</a></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">MapperAnnotationBuilder</span><br><span class="line"></span><br><span class="line">public void parse() &#123;</span><br><span class="line">    loadXmlResource();</span><br><span class="line">    parseCache();</span><br><span class="line">    parseCacheRef();</span><br><span class="line">    Method[] methods = type.getMethods();</span><br><span class="line">    for (Method method : methods) &#123;</span><br><span class="line">        if (!method.isBridge()) &#123;</span><br><span class="line">            // issue #237</span><br><span class="line">            parseStatement(method);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>依旧是关注代码主干，进入到parseStatement方法<br>parseStatement做的事情还是比较多的，我们一步一步来分析</p>
+<p>首先获取方法的参数类型，如果参数是多个，那么parameterTypeClass的值为ParamMap.class，同时会排除RowBounds和ResultHandler类型<br>然后获取LanguageDriver，通过@Lang注解在Configuration中获得，LanguageDriver的主要用途是翻译sql，常见有xml，raw和velocity<br>（实际上翻译sql的过程也是一个比较复杂而繁琐的，有机会以后会专门开设章节说说sql如何翻译出来的）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MapperAnnotationBuilder</span><br><span class="line"></span><br><span class="line">void parseStatement(Method method)</span><br><span class="line"></span><br><span class="line">    Class&lt;?&gt; parameterTypeClass = getParameterType(method);</span><br><span class="line">    LanguageDriver languageDriver = getLanguageDriver(method);</span><br></pre></td></tr></table></figure>
+
+<p>接下来的方法，是通过上述信息，把方法注解中的sql语句转化为SqlSource对象，这里有个注意点，sql语句的提供不仅仅是增删改查那几个注解，还有<br>对应的SqlProvider，该方法对这两种情况都做了相应的处理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MapperAnnotationBuilder</span><br><span class="line"></span><br><span class="line">void parseStatement(Method method)</span><br><span class="line"></span><br><span class="line">    SqlSource sqlSource = getSqlSourceFromAnnotations(method, parameterTypeClass, languageDriver);</span><br></pre></td></tr></table></figure>
+
+<p>再然后，取出方法注解中的@Options中的各种属性（是否使用缓存，如何刷缓存，结果集类型，表达式（statement）类型，超时时间，是否使用key等等）<br>如果有@SelectKey，那么会将其中sql解析出来，然后放入到configuration的mappedStatement中（这个后面还会说到），并生成SelectKeyGenerator<br>同样注册到Configuration中。<br>之后，如果有@ResultMap，那么解析相关注解</p>
+<p>如果没有ResultMap，并且是一个查询方法，那么会自行解析一个result map，首先会寻找以下注解：@Arg，@Result，@TypeDiscriminator<br>然后分别做解析操作，这里定义result map直接和查询的结果集与对象映射有关，并且会被加入到Configuration中，后面章节会重点讲解</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">MapperAnnotationBuilder</span><br><span class="line"></span><br><span class="line">private String parseResultMap(Method method) &#123;</span><br><span class="line">    Class&lt;?&gt; returnType = getReturnType(method);</span><br><span class="line">    Arg[] args = method.getAnnotationsByType(Arg.class);</span><br><span class="line">    Result[] results = method.getAnnotationsByType(Result.class);</span><br><span class="line">    TypeDiscriminator typeDiscriminator = method.getAnnotation(TypeDiscriminator.class);</span><br><span class="line">    String resultMapId = generateResultMapName(method);</span><br><span class="line">    applyResultMap(resultMapId, returnType, args, results, typeDiscriminator);</span><br><span class="line">    return resultMapId;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>本方法的最后一行（好长….）,MapperBuilderAssistant会将Mapper方法上所有的有关信息汇总起来，封装成MappedStatement对象注册到Configuration<br>中，换言之，Mapper方法上sql在mybatis的最终形态就是MappedStatement</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">MapperAnnotationBuilder</span><br><span class="line"></span><br><span class="line">void parseStatement(Method method)</span><br><span class="line"></span><br><span class="line">assistant.addMappedStatement(mappedStatementId, sqlSource, statementType, sqlCommandType, fetchSize,</span><br><span class="line">          timeout,</span><br><span class="line">          // ParameterMapID</span><br><span class="line">          null, parameterTypeClass, resultMapId, getReturnType(method), resultSetType, flushCache,</span><br><span class="line">          useCache,</span><br><span class="line">          // TODO gcode issue #577</span><br><span class="line">          false, keyGenerator, keyProperty, keyColumn,</span><br><span class="line">          // DatabaseID</span><br><span class="line">          null, languageDriver,</span><br><span class="line">          // ResultSets</span><br><span class="line">          options != null ? nullOrEmpty(options.resultSets()) : null);</span><br></pre></td></tr></table></figure>
+
+<p>至此，回到我们的第一个代码片段，发现SqlSessionFactoryBuilder这个建造类已经将SqlSessionFactory建造出来了，那么这个时候<br>就可以用建造出来的工厂类进一步产生SqlSession以执行相应的语句了。</p>
+
+      
+    </div>
+    <div class="article-footer">
+      <blockquote class="mt-2x">
+  <ul class="post-copyright list-unstyled">
+    
+    
+    <li class="post-copyright-license">
+      <strong>版权声明： </strong> 本博客所有文章除特别声明外，均采用 <a href="http://creativecommons.org/licenses/by/4.0/deed.zh" target="_blank" rel="external">CC BY 4.0 CN协议</a> 许可协议。转载请注明出处！
+    </li>
+  </ul>
+</blockquote>
+
+
+<div class="panel panel-default panel-badger">
+  <div class="panel-body">
+    <figure class="media">
+      <div class="media-left">
+        <a href="https://github.com/OswaldZhuang" target="_blank" class="img-burn thumb-sm visible-lg">
+          <img src="/images/avatar.jpg" class="img-rounded w-full" alt="">
+        </a>
+      </div>
+      <div class="media-body">
+        <h3 class="media-heading"><a href="https://github.com/OswaldZhuang" target="_blank"><span class="text-dark">Oswald Zhuang</span><small class="ml-1x">Java开发工程师</small></a></h3>
+        <div>一个朴实无华又低调的程序小弟</div>
+      </div>
+    </figure>
+  </div>
+</div>
+
+
+    </div>
+  </article>
+  
+    
+  <section id="comments">
+  	
+
+    
+  </section>
+
+
+  
+</div>
+
+  <nav class="bar bar-footer clearfix" data-stick-bottom>
+  <div class="bar-inner">
+  
+  <ul class="pager pull-left">
+    
+    <li class="prev">
+      <a href="/2019/12/31/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E6%89%A7%E8%A1%8Csql%E7%9A%84/" title="Mybatis是如何执行sql的"><i class="icon icon-angle-left" aria-hidden="true"></i><span>&nbsp;&nbsp;Newer</span></a>
+    </li>
+    
+    
+    <li class="next">
+      <a href="/2019/11/18/uuid%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90%E7%9A%84/" title="uuid是如何生成的"><span>Older&nbsp;&nbsp;</span><i class="icon icon-angle-right" aria-hidden="true"></i></a>
+    </li>
+    
+    
+  </ul>
+  
+  
+  <!-- Button trigger modal -->
+  <button type="button" class="btn btn-fancy btn-donate pop-onhover bg-gradient-warning" data-toggle="modal" data-target="#donateModal"><span>$</span></button>
+  <!-- <div class="wave-icon wave-icon-danger btn-donate" data-toggle="modal" data-target="#donateModal">
+    <div class="wave-circle"><span class="icon"><i class="icon icon-bill"></i></span></div>
+  </div> -->
+  
+  
+  <div class="bar-right">
+    
+    <div class="share-component" data-sites="weibo,qq,wechat,facebook,twitter" data-mobile-sites="weibo,qq,qzone"></div>
+    
+  </div>
+  </div>
+</nav>
+  
+<!-- Modal -->
+<div class="modal modal-center modal-small modal-xs-full fade" id="donateModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content donate">
+      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      <div class="modal-body">
+        <div class="donate-box">
+          <div class="donate-head">
+            <p>Maybe you could buy me a cup of coffee.</p>
+          </div>
+          <div class="tab-content">
+            <div role="tabpanel" class="tab-pane fade active in" id="alipay">
+              <div class="donate-payimg">
+                <img src="/images/donate/alipayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open alipay app scan this qrcode, buy me a coffee!</p>
+            </div>
+            <div role="tabpanel" class="tab-pane fade" id="wechatpay">
+              <div class="donate-payimg">
+                <img src="/images/donate/wechatpayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open wechat app scan this qrcode, buy me a coffee!</p>
+            </div>
+          </div>
+          <div class="donate-footer">
+            <ul class="nav nav-tabs nav-justified" role="tablist">
+              <li role="presentation" class="active">
+                <a href="#alipay" id="alipay-tab" role="tab" data-toggle="tab" aria-controls="alipay" aria-expanded="true"><i class="icon icon-alipay"></i> alipay</a>
+              </li>
+              <li role="presentation" class="">
+                <a href="#wechatpay" role="tab" id="wechatpay-tab" data-toggle="tab" aria-controls="wechatpay" aria-expanded="false"><i class="icon icon-wepay"></i> wechat payment</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</main>
+
+  <footer class="footer" itemscope itemtype="http://schema.org/WPFooter">
+	
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    <div class="copyright">
+    	
+        <div class="publishby">
+		power by hexo
+        </div>
+    </div>
+</footer>
+
+  <script src="//cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+<script>
+window.jQuery || document.write('<script src="js/jquery.min.js"><\/script>')
+</script>
+<script src="/js/plugin.min.js"></script>
+<script src="/js/application.js"></script>
+
+    <script>
+(function (window) {
+    var INSIGHT_CONFIG = {
+        TRANSLATION: {
+            POSTS: 'Posts',
+            PAGES: 'Pages',
+            CATEGORIES: 'Categories',
+            TAGS: 'Tags',
+            UNTITLED: '(Untitled)',
+        },
+        ROOT_URL: '/',
+        CONTENT_URL: '/content.json',
+    };
+    window.INSIGHT_CONFIG = INSIGHT_CONFIG;
+})(window);
+</script>
+<script src="/js/insight.js"></script>
+
+
+
+
+
+   
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+   
+    
+<script src="//cdn.jsdelivr.net/npm/gitment@0.0.3/dist/gitment.browser.min.js"></script>
+<script>
+var gitment = new Gitment({
+  // id默认为当前页面url，如果url后带参数或锚点，gitment要重新初始化
+  // https://github.com/imsun/gitment/issues/55
+  // 解决方案：id:window.location.pathname,或者将id设置为当前页面标题
+  id: 'OswaldZhuang', 
+  owner: 'OswaldZhuang', // 可以是你的GitHub用户名，也可以是github id
+  repo: 'OswaldZhuang.github.io',
+  oauth: {
+    client_id: '5602f040dc37e1c3e43e',
+    client_secret: '6311a0c22ce2c2971d73335783b8168844469f18',
+  }
+})
+gitment.render('comments')
+</script>
+
+
+
+
+
+
+
+
+
+</body>
+</html>

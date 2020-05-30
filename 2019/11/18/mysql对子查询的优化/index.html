@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+  <meta charset="utf-8">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="Cache-Control" content="no-transform" />
+  <meta http-equiv="Cache-Control" content="no-siteapp" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no,email=no,adress=no">
+  <!-- Color theme for statusbar -->
+  <meta name="theme-color" content="#000000" />
+  <!-- 强制页面在当前窗口以独立页面显示,防止别人在框架里调用页面 -->
+  <meta http-equiv="window-target" content="_top" />
+  
+  
+  <title>mysql对子查询的优化 | Oswald</title>
+  <meta name="description" content="版本 mysql 8.0+  参照mysql的官方说明手册，对于子查询（subqueries），优化器会采用如下策略：  针对in, = any, exists semijoin（半连接，针对in） Materialization（物化） exists 策略   针对not in, &amp;lt;&amp;gt; all, not exists Materialization（物化） exists 策略">
+<meta property="og:type" content="article">
+<meta property="og:title" content="mysql对子查询的优化">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;11&#x2F;18&#x2F;mysql%E5%AF%B9%E5%AD%90%E6%9F%A5%E8%AF%A2%E7%9A%84%E4%BC%98%E5%8C%96&#x2F;index.html">
+<meta property="og:site_name" content="Oswald">
+<meta property="og:description" content="版本 mysql 8.0+  参照mysql的官方说明手册，对于子查询（subqueries），优化器会采用如下策略：  针对in, = any, exists semijoin（半连接，针对in） Materialization（物化） exists 策略   针对not in, &amp;lt;&amp;gt; all, not exists Materialization（物化） exists 策略">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2020-01-05T04:13:09.550Z">
+<meta name="twitter:card" content="summary">
+  <!-- Canonical links -->
+  <link rel="canonical" href="http://yoursite.com/2019/11/18/mysql%E5%AF%B9%E5%AD%90%E6%9F%A5%E8%AF%A2%E7%9A%84%E4%BC%98%E5%8C%96/index.html">
+  
+    <link rel="alternate" href="/atom.xml" title="Oswald" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png" type="image/x-icon">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+  
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitment@0.0.3/style/default.min.css">
+  
+  
+  
+</head>
+
+
+<body class="main-center" itemscope itemtype="http://schema.org/WebPage">
+  <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+  <div class="slimContent">
+    <div class="navbar-header">
+      
+      
+      <div class="profile-block text-center">
+        <a id="avatar" href="https://github.com/OswaldZhuang" target="_blank">
+          <img class="img-circle img-rotate" src="/images/avatar.jpg" width="200" height="200">
+        </a>
+        <h2 id="name" class="hidden-xs hidden-sm">Oswald Zhuang</h2>
+        <h3 id="title" class="hidden-xs hidden-sm hidden-md">Java开发工程师</h3>
+        <small id="location" class="text-muted hidden-xs hidden-sm"><i class="icon icon-map-marker"></i> Shanghai, China</small>
+      </div>
+      
+      <div class="search" id="search-form-wrap">
+
+    <form class="search-form sidebar-form">
+        <div class="input-group">
+            <input type="text" class="search-form-input form-control" placeholder="Search" />
+            <span class="input-group-btn">
+                <button type="submit" class="search-form-submit btn btn-flat" onclick="return false;"><i class="icon icon-search"></i></button>
+            </span>
+        </div>
+    </form>
+    <div class="ins-search">
+  <div class="ins-search-mask"></div>
+  <div class="ins-search-container">
+    <div class="ins-input-wrapper">
+      <input type="text" class="ins-search-input" placeholder="Type something..." x-webkit-speech />
+      <button type="button" class="close ins-close ins-selectable" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+    </div>
+    <div class="ins-section-wrapper">
+      <div class="ins-section-container"></div>
+    </div>
+  </div>
+</div>
+
+
+</div>
+      <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <nav id="main-navbar" class="collapse navbar-collapse" itemscope itemtype="http://schema.org/SiteNavigationElement" role="navigation">
+      <ul class="nav navbar-nav main-nav ">
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/.">
+            
+            <i class="icon icon-home-fill"></i>
+            
+            <span class="menu-title">Home</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives">
+            
+            <i class="icon icon-archives-fill"></i>
+            
+            <span class="menu-title">Archives</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories">
+            
+            <i class="icon icon-folder"></i>
+            
+            <span class="menu-title">Categories</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags">
+            
+            <i class="icon icon-tags"></i>
+            
+            <span class="menu-title">Tags</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-repository">
+          <a href="/repository">
+            
+            <i class="icon icon-project"></i>
+            
+            <span class="menu-title">Repository</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-books">
+          <a href="/books">
+            
+            <i class="icon icon-book-fill"></i>
+            
+            <span class="menu-title">Books</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-links">
+          <a href="/links">
+            
+            <i class="icon icon-friendship"></i>
+            
+            <span class="menu-title">Links</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about">
+            
+            <i class="icon icon-cup-fill"></i>
+            
+            <span class="menu-title">About</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    </nav>
+  </div>
+</header>
+
+  
+    <aside class="sidebar" itemscope itemtype="http://schema.org/WPSideBar">
+  <div class="slimContent">
+    
+      <div class="widget">
+    <h3 class="widget-title">Board</h3>
+    <div class="widget-body">
+        <div id="board">
+            <div class="content">
+                <p>天青色等烟雨</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget-body">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%84%9F%E6%82%9F/">感悟</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><span class="category-list-count">10</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mysql/">mysql</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a><span class="category-list-count">3</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%97%85%E8%A1%8C/">旅行</a><span class="category-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+
+    
+      
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Archive</h3>
+    <div class="widget-body">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/02/">二月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/01/">一月 2020</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/12/">十二月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/11/">十一月 2019</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/10/">十月 2019</a><span class="archive-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget-body">
+      <ul class="recent-post-list list-unstyled no-thumbnail">
+        
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/27/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%882%EF%BC%89/" class="title">Spring对bean的加载顺序（2）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-26T20:52:47.000Z" itemprop="datePublished">2020-02-26</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/" class="title">Spring对bean的加载顺序（1）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-23T15:58:21.000Z" itemprop="datePublished">2020-02-23</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" class="title">Spring bean的获取过程</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/" class="title">Mybatis的缓存机制</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/01/28/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90%E7%BB%93%E6%9E%9C%E9%9B%86%E7%9A%84/" class="title">Mybatis是如何解析结果集的</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-01-27T16:43:25.000Z" itemprop="datePublished">2020-01-27</time>
+              </p>
+            </div>
+          </li>
+          
+      </ul>
+    </div>
+  </div>
+  
+
+    
+  </div>
+</aside>
+
+  
+  
+<main class="main" role="main">
+  <div class="content">
+  <article id="post-mysql对子查询的优化" class="article article-type-post" itemscope itemtype="http://schema.org/BlogPosting">
+    
+    <div class="article-header">
+      
+        
+  
+    <h1 class="article-title" itemprop="name">
+      mysql对子查询的优化
+    </h1>
+  
+
+      
+      <div class="article-meta">
+        <span class="article-date">
+    <i class="icon icon-calendar-check"></i>
+	<a href="/2019/11/18/mysql%E5%AF%B9%E5%AD%90%E6%9F%A5%E8%AF%A2%E7%9A%84%E4%BC%98%E5%8C%96/" class="article-date">
+	  <time datetime="2019-11-17T16:00:00.000Z" itemprop="datePublished">2019-11-17</time>
+	</a>
+</span>
+        
+  <span class="article-category">
+    <i class="icon icon-folder"></i>
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a>►<a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/mysql/">mysql</a>
+  </span>
+
+        
+
+        
+	<span class="article-read hidden-xs">
+	    <i class="icon icon-eye-fill" aria-hidden="true"></i>
+	    <span id="busuanzi_container_page_pv">
+			<span id="busuanzi_value_page_pv">0</span>
+		</span>
+	</span>
+
+
+        <span class="post-comment"><i class="icon icon-comment"></i> <a href="/2019/11/18/mysql%E5%AF%B9%E5%AD%90%E6%9F%A5%E8%AF%A2%E7%9A%84%E4%BC%98%E5%8C%96/#comments" class="article-comment-link">Comments</a></span>
+        
+	
+		<span class="post-wordcount hidden-xs" itemprop="wordCount">Word Count: 1.1k(words)</span>
+	
+	
+		<span class="post-readcount hidden-xs" itemprop="timeRequired">Read Count: 4(minutes)</span>
+	
+
+      </div>
+    </div>
+    <div class="article-entry marked-body" itemprop="articleBody">
+      
+        <blockquote>
+<p>版本 mysql 8.0+</p>
+</blockquote>
+<p>参照mysql的官方说明手册，对于子查询（subqueries），优化器会采用如下策略：</p>
+<ol>
+<li>针对in, = any, exists<ol>
+<li>semijoin（半连接，针对in）</li>
+<li>Materialization（物化）</li>
+<li>exists 策略</li>
+</ol>
+</li>
+<li>针对not in, &lt;&gt; all, not exists<ol>
+<li>Materialization（物化）</li>
+<li>exists 策略</li>
+</ol>
+</li>
+</ol>
+<p>那么什么是半连接呢？</p>
+<blockquote>
+<p>半连接和join类似，都是基于某些条件将两张表连接起来，但不同的是，半连接仅仅返回一张表的内容<br>半连接最大的好处是减少冗余（想想join返回的是连接两张表之后的内容）</p>
+</blockquote>
+<p>那么什么是物化呢？</p>
+<blockquote>
+<p>将子查询的结果保存为一张带有索引的临时表，后续查询时直接对临时表进行访问</p>
+</blockquote>
+<h3 id="半连接优化in和exists"><a href="#半连接优化in和exists" class="headerlink" title="半连接优化in和exists"></a>半连接优化in和exists</h3><blockquote>
+<p>半连接(semijoin)是一种准备时期的转换，这种转化将采用如下策略：<br>表格剥离，冗余清除，首次匹配，松散扫描和物化</p>
+</blockquote>
+<p>我们观察如下的sql</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">select class.class_num, class.class_name</span><br><span class="line">from class</span><br><span class="line">inner join roster</span><br><span class="line">where class.class_num = roster.class_num</span><br></pre></td></tr></table></figure>
+<p>其中class_num为主键</p>
+<p>可以看到，这是个join操作，但是仔细观察，我们发现需要返回的结果仅仅是class表的两列，那么这个join<br>操作实际上是冗余的。于是，为了消除冗余，我们可以有如下的写法：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">select class_num, class_name</span><br><span class="line">from class</span><br><span class="line">where class_num in </span><br><span class="line">(select class_num from roster)</span><br></pre></td></tr></table></figure>
+<p>这种情况下，返回值仅仅是一张表的某些字段，此时，mysql会使用semijoin<br>在mysql中，还有一种antijoin，这是和semijoin相对的概念，简单来说，就是<br>not in或者not exists<br>要想使用半连接，是有一些前提条件的，比如：<br>select中不能有union关键字<br>不能有having<br>不能包含聚合操作<br>外部查询中不能使用STRAIGHT_JOIN的join类型</p>
+<p>转化为semijoin的时候mysql会采用最开始说的那几种策略，现解释他们的意思：</p>
+<ol>
+<li>将子查询转为join，”表格剥离”指将表从子查询中剥离出来和外部查询进行inner join</li>
+<li>冗余清除指的是类似于join一样运行semijoin，然后用临时表去掉重复记录</li>
+<li>“首次匹配”指只返回第一个符合条件的结果，而不是全部</li>
+<li>“松散扫描”指利用索引在每个子查询中选择值</li>
+<li>“物化”指将子查询转化为基于索引的临时表以进行下一步的join，而索引用作去重</li>
+</ol>
+<h3 id="物化法优化子查询"><a href="#物化法优化子查询" class="headerlink" title="物化法优化子查询"></a>物化法优化子查询</h3><h3 id="exists策略优化子查询"><a href="#exists策略优化子查询" class="headerlink" title="exists策略优化子查询"></a>exists策略优化子查询</h3><p>观察第二个sql，实际上，内部的class_num是外部class_num的条件（即这个class_num必须在<br>roster表中），那么针对这样的子查询，优化器会将其转化为exists语句，也就是exists策略，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">select class_num, class_name</span><br><span class="line">from class</span><br><span class="line">where exists</span><br><span class="line">(select * from roster where class.class_num = roster.class_num)</span><br></pre></td></tr></table></figure>
+
+<p>那么exists的执行过程是如何的呢？<br>由于连接的条件是两个class_num相等，那么在执行sql语句的时候首先会将class表中的class_num依次取出来，<br>然后和内部子查询的roster的class_num做对比，如果相等，那么返回true(子查询返回true)，如果返回true，<br>那么保留class那行的数据。<br>这个时候我们可以想一下，假设class有M条数据，roster有N条数据。<br>再假设class_num上没有索引，那么上述查询就会执行MxN次，效率极低。</p>
+<p>exists策略遵循下面的模式：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">outer_expr in (select inner_expr from xxx where yyy)</span><br><span class="line">转化为</span><br><span class="line">exists (select 1 from xxx where outer_expr = inner_expr and yyy)</span><br></pre></td></tr></table></figure>
+
+<p>但是需要注意的是，上述优化能够成立的条件是outer_expr和inner_expr都不为空<br>那么如果其中有null值会发生什么呢？<br>（sql当中null被翻译为”未知的值”）</p>
+<ol>
+<li>outer_expr肯定不返回null但是inner_expr可能返回null<br>那么优化器会将其优化为</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">exists (select 1 from xxx where outer_expr = inner_expr or inner_expr is null and yyy)</span><br></pre></td></tr></table></figure>
+<ol start="2">
+<li>outer_expr返回null<br>如果outer_expr是null，那么执行的时候就会是这样</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">null in (select inner_expr from xxx where yyy)</span><br></pre></td></tr></table></figure>
+
+<p>这时就必须要执行一遍里面的select来看inner_expr产生的值<br>上述语句翻译过来就是，当select出任意null值时，结果返回null；当没有select出值时，返回false</p>
+<blockquote>
+<p>为什么null的判断不能放到子查询里面去？因为子查询是对xxx表的判断而不是对外面的表的判断</p>
+</blockquote>
+<p>而如果outer_expr不是null，查询的时候遵照exists优化的策略进行相应转换</p>
+<p>可以看出，null值会使得优化过程变得复杂甚至使得查询变慢。所以在子查询中，要尽量避免内外条件为null的情况</p>
+
+      
+    </div>
+    <div class="article-footer">
+      <blockquote class="mt-2x">
+  <ul class="post-copyright list-unstyled">
+    
+    
+    <li class="post-copyright-license">
+      <strong>版权声明： </strong> 本博客所有文章除特别声明外，均采用 <a href="http://creativecommons.org/licenses/by/4.0/deed.zh" target="_blank" rel="external">CC BY 4.0 CN协议</a> 许可协议。转载请注明出处！
+    </li>
+  </ul>
+</blockquote>
+
+
+<div class="panel panel-default panel-badger">
+  <div class="panel-body">
+    <figure class="media">
+      <div class="media-left">
+        <a href="https://github.com/OswaldZhuang" target="_blank" class="img-burn thumb-sm visible-lg">
+          <img src="/images/avatar.jpg" class="img-rounded w-full" alt="">
+        </a>
+      </div>
+      <div class="media-body">
+        <h3 class="media-heading"><a href="https://github.com/OswaldZhuang" target="_blank"><span class="text-dark">Oswald Zhuang</span><small class="ml-1x">Java开发工程师</small></a></h3>
+        <div>一个朴实无华又低调的程序小弟</div>
+      </div>
+    </figure>
+  </div>
+</div>
+
+
+    </div>
+  </article>
+  
+    
+  <section id="comments">
+  	
+
+    
+  </section>
+
+
+  
+</div>
+
+  <nav class="bar bar-footer clearfix" data-stick-bottom>
+  <div class="bar-inner">
+  
+  <ul class="pager pull-left">
+    
+    <li class="prev">
+      <a href="/2019/11/18/uuid%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90%E7%9A%84/" title="uuid是如何生成的"><i class="icon icon-angle-left" aria-hidden="true"></i><span>&nbsp;&nbsp;Newer</span></a>
+    </li>
+    
+    
+    <li class="next">
+      <a href="/2019/11/09/hello-world/" title="Hello World"><span>Older&nbsp;&nbsp;</span><i class="icon icon-angle-right" aria-hidden="true"></i></a>
+    </li>
+    
+    
+  </ul>
+  
+  
+  <!-- Button trigger modal -->
+  <button type="button" class="btn btn-fancy btn-donate pop-onhover bg-gradient-warning" data-toggle="modal" data-target="#donateModal"><span>$</span></button>
+  <!-- <div class="wave-icon wave-icon-danger btn-donate" data-toggle="modal" data-target="#donateModal">
+    <div class="wave-circle"><span class="icon"><i class="icon icon-bill"></i></span></div>
+  </div> -->
+  
+  
+  <div class="bar-right">
+    
+    <div class="share-component" data-sites="weibo,qq,wechat,facebook,twitter" data-mobile-sites="weibo,qq,qzone"></div>
+    
+  </div>
+  </div>
+</nav>
+  
+<!-- Modal -->
+<div class="modal modal-center modal-small modal-xs-full fade" id="donateModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content donate">
+      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      <div class="modal-body">
+        <div class="donate-box">
+          <div class="donate-head">
+            <p>Maybe you could buy me a cup of coffee.</p>
+          </div>
+          <div class="tab-content">
+            <div role="tabpanel" class="tab-pane fade active in" id="alipay">
+              <div class="donate-payimg">
+                <img src="/images/donate/alipayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open alipay app scan this qrcode, buy me a coffee!</p>
+            </div>
+            <div role="tabpanel" class="tab-pane fade" id="wechatpay">
+              <div class="donate-payimg">
+                <img src="/images/donate/wechatpayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open wechat app scan this qrcode, buy me a coffee!</p>
+            </div>
+          </div>
+          <div class="donate-footer">
+            <ul class="nav nav-tabs nav-justified" role="tablist">
+              <li role="presentation" class="active">
+                <a href="#alipay" id="alipay-tab" role="tab" data-toggle="tab" aria-controls="alipay" aria-expanded="true"><i class="icon icon-alipay"></i> alipay</a>
+              </li>
+              <li role="presentation" class="">
+                <a href="#wechatpay" role="tab" id="wechatpay-tab" data-toggle="tab" aria-controls="wechatpay" aria-expanded="false"><i class="icon icon-wepay"></i> wechat payment</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</main>
+
+  <footer class="footer" itemscope itemtype="http://schema.org/WPFooter">
+	
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    <div class="copyright">
+    	
+        <div class="publishby">
+		power by hexo
+        </div>
+    </div>
+</footer>
+
+  <script src="//cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+<script>
+window.jQuery || document.write('<script src="js/jquery.min.js"><\/script>')
+</script>
+<script src="/js/plugin.min.js"></script>
+<script src="/js/application.js"></script>
+
+    <script>
+(function (window) {
+    var INSIGHT_CONFIG = {
+        TRANSLATION: {
+            POSTS: 'Posts',
+            PAGES: 'Pages',
+            CATEGORIES: 'Categories',
+            TAGS: 'Tags',
+            UNTITLED: '(Untitled)',
+        },
+        ROOT_URL: '/',
+        CONTENT_URL: '/content.json',
+    };
+    window.INSIGHT_CONFIG = INSIGHT_CONFIG;
+})(window);
+</script>
+<script src="/js/insight.js"></script>
+
+
+
+
+
+   
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+   
+    
+<script src="//cdn.jsdelivr.net/npm/gitment@0.0.3/dist/gitment.browser.min.js"></script>
+<script>
+var gitment = new Gitment({
+  // id默认为当前页面url，如果url后带参数或锚点，gitment要重新初始化
+  // https://github.com/imsun/gitment/issues/55
+  // 解决方案：id:window.location.pathname,或者将id设置为当前页面标题
+  id: 'OswaldZhuang', 
+  owner: 'OswaldZhuang', // 可以是你的GitHub用户名，也可以是github id
+  repo: 'OswaldZhuang.github.io',
+  oauth: {
+    client_id: '5602f040dc37e1c3e43e',
+    client_secret: '6311a0c22ce2c2971d73335783b8168844469f18',
+  }
+})
+gitment.render('comments')
+</script>
+
+
+
+
+
+
+
+
+
+</body>
+</html>

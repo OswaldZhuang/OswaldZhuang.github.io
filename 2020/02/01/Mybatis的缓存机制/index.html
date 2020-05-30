@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+  <meta charset="utf-8">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="Cache-Control" content="no-transform" />
+  <meta http-equiv="Cache-Control" content="no-siteapp" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no,email=no,adress=no">
+  <!-- Color theme for statusbar -->
+  <meta name="theme-color" content="#000000" />
+  <!-- 强制页面在当前窗口以独立页面显示,防止别人在框架里调用页面 -->
+  <meta http-equiv="window-target" content="_top" />
+  
+  
+  <title>Mybatis的缓存机制 | Oswald</title>
+  <meta name="description" content="Mybatis的缓存有两种：一级缓存，二级缓存。  一级缓存的作用域为SqlSession，二级缓存的作用域为某条Sql（或者准确的说是MappedStatement） 那么他们的区别和工作流程是怎么样的呢？ ###一级缓存从前面的分析中我们知道，在进行查询的时候，Mybatis会调用SqlSession进而调用Executor来执行sql语句。而一切Executor的基础类是BaseExecu">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mybatis的缓存机制">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;02&#x2F;01&#x2F;Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6&#x2F;index.html">
+<meta property="og:site_name" content="Oswald">
+<meta property="og:description" content="Mybatis的缓存有两种：一级缓存，二级缓存。  一级缓存的作用域为SqlSession，二级缓存的作用域为某条Sql（或者准确的说是MappedStatement） 那么他们的区别和工作流程是怎么样的呢？ ###一级缓存从前面的分析中我们知道，在进行查询的时候，Mybatis会调用SqlSession进而调用Executor来执行sql语句。而一切Executor的基础类是BaseExecu">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2020-02-23T11:49:24.076Z">
+<meta name="twitter:card" content="summary">
+  <!-- Canonical links -->
+  <link rel="canonical" href="http://yoursite.com/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/index.html">
+  
+    <link rel="alternate" href="/atom.xml" title="Oswald" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png" type="image/x-icon">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+  
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitment@0.0.3/style/default.min.css">
+  
+  
+  
+</head>
+
+
+<body class="main-center" itemscope itemtype="http://schema.org/WebPage">
+  <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+  <div class="slimContent">
+    <div class="navbar-header">
+      
+      
+      <div class="profile-block text-center">
+        <a id="avatar" href="https://github.com/OswaldZhuang" target="_blank">
+          <img class="img-circle img-rotate" src="/images/avatar.jpg" width="200" height="200">
+        </a>
+        <h2 id="name" class="hidden-xs hidden-sm">Oswald Zhuang</h2>
+        <h3 id="title" class="hidden-xs hidden-sm hidden-md">Java开发工程师</h3>
+        <small id="location" class="text-muted hidden-xs hidden-sm"><i class="icon icon-map-marker"></i> Shanghai, China</small>
+      </div>
+      
+      <div class="search" id="search-form-wrap">
+
+    <form class="search-form sidebar-form">
+        <div class="input-group">
+            <input type="text" class="search-form-input form-control" placeholder="Search" />
+            <span class="input-group-btn">
+                <button type="submit" class="search-form-submit btn btn-flat" onclick="return false;"><i class="icon icon-search"></i></button>
+            </span>
+        </div>
+    </form>
+    <div class="ins-search">
+  <div class="ins-search-mask"></div>
+  <div class="ins-search-container">
+    <div class="ins-input-wrapper">
+      <input type="text" class="ins-search-input" placeholder="Type something..." x-webkit-speech />
+      <button type="button" class="close ins-close ins-selectable" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+    </div>
+    <div class="ins-section-wrapper">
+      <div class="ins-section-container"></div>
+    </div>
+  </div>
+</div>
+
+
+</div>
+      <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <nav id="main-navbar" class="collapse navbar-collapse" itemscope itemtype="http://schema.org/SiteNavigationElement" role="navigation">
+      <ul class="nav navbar-nav main-nav ">
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/.">
+            
+            <i class="icon icon-home-fill"></i>
+            
+            <span class="menu-title">Home</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives">
+            
+            <i class="icon icon-archives-fill"></i>
+            
+            <span class="menu-title">Archives</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories">
+            
+            <i class="icon icon-folder"></i>
+            
+            <span class="menu-title">Categories</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags">
+            
+            <i class="icon icon-tags"></i>
+            
+            <span class="menu-title">Tags</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-repository">
+          <a href="/repository">
+            
+            <i class="icon icon-project"></i>
+            
+            <span class="menu-title">Repository</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-books">
+          <a href="/books">
+            
+            <i class="icon icon-book-fill"></i>
+            
+            <span class="menu-title">Books</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-links">
+          <a href="/links">
+            
+            <i class="icon icon-friendship"></i>
+            
+            <span class="menu-title">Links</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about">
+            
+            <i class="icon icon-cup-fill"></i>
+            
+            <span class="menu-title">About</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    </nav>
+  </div>
+</header>
+
+  
+    <aside class="sidebar" itemscope itemtype="http://schema.org/WPSideBar">
+  <div class="slimContent">
+    
+      <div class="widget">
+    <h3 class="widget-title">Board</h3>
+    <div class="widget-body">
+        <div id="board">
+            <div class="content">
+                <p>天青色等烟雨</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget-body">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%84%9F%E6%82%9F/">感悟</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><span class="category-list-count">10</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mysql/">mysql</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a><span class="category-list-count">3</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%97%85%E8%A1%8C/">旅行</a><span class="category-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+
+    
+      
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Archive</h3>
+    <div class="widget-body">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/02/">二月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/01/">一月 2020</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/12/">十二月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/11/">十一月 2019</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/10/">十月 2019</a><span class="archive-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget-body">
+      <ul class="recent-post-list list-unstyled no-thumbnail">
+        
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/27/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%882%EF%BC%89/" class="title">Spring对bean的加载顺序（2）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-26T20:52:47.000Z" itemprop="datePublished">2020-02-26</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/" class="title">Spring对bean的加载顺序（1）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-23T15:58:21.000Z" itemprop="datePublished">2020-02-23</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" class="title">Spring bean的获取过程</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/" class="title">Mybatis的缓存机制</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/01/28/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90%E7%BB%93%E6%9E%9C%E9%9B%86%E7%9A%84/" class="title">Mybatis是如何解析结果集的</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-01-27T16:43:25.000Z" itemprop="datePublished">2020-01-27</time>
+              </p>
+            </div>
+          </li>
+          
+      </ul>
+    </div>
+  </div>
+  
+
+    
+  </div>
+</aside>
+
+  
+  
+<main class="main" role="main">
+  <div class="content">
+  <article id="post-Mybatis的缓存机制" class="article article-type-post" itemscope itemtype="http://schema.org/BlogPosting">
+    
+    <div class="article-header">
+      
+        
+  
+    <h1 class="article-title" itemprop="name">
+      Mybatis的缓存机制
+    </h1>
+  
+
+      
+      <div class="article-meta">
+        <span class="article-date">
+    <i class="icon icon-calendar-check"></i>
+	<a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/" class="article-date">
+	  <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+	</a>
+</span>
+        
+  <span class="article-category">
+    <i class="icon icon-folder"></i>
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a>►<a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+  </span>
+
+        
+
+        
+	<span class="article-read hidden-xs">
+	    <i class="icon icon-eye-fill" aria-hidden="true"></i>
+	    <span id="busuanzi_container_page_pv">
+			<span id="busuanzi_value_page_pv">0</span>
+		</span>
+	</span>
+
+
+        <span class="post-comment"><i class="icon icon-comment"></i> <a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/#comments" class="article-comment-link">Comments</a></span>
+        
+	
+		<span class="post-wordcount hidden-xs" itemprop="wordCount">Word Count: 1.5k(words)</span>
+	
+	
+		<span class="post-readcount hidden-xs" itemprop="timeRequired">Read Count: 6(minutes)</span>
+	
+
+      </div>
+    </div>
+    <div class="article-entry marked-body" itemprop="articleBody">
+      
+        <blockquote>
+<p>Mybatis的缓存有两种：一级缓存，二级缓存。</p>
+</blockquote>
+<p>一级缓存的作用域为SqlSession，二级缓存的作用域为某条Sql（或者准确的说是MappedStatement）</p>
+<p>那么他们的区别和工作流程是怎么样的呢？</p>
+<p>###一级缓存<br>从前面的分析中我们知道，在进行查询的时候，Mybatis会调用SqlSession进而调用Executor来执行sql语句。<br>而一切Executor的基础类是BaseExecutor（这也是个模板类），在BaseExecutor中有这么一段代码<br>其中localCache就是所谓的一级缓存，先从缓存中拿数据，拿不到再查库，这是典型的写法，注意到这里缓存的key是CacheKey，<br>这个key是如何被计算出来的，后面会详解<br>其中handleLocallyCachedOutputParameters的处理事针对存储过程，在此不做讨论。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">BaseExecutor</span><br><span class="line"></span><br><span class="line">public &lt;E&gt; List&lt;E&gt; query(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, </span><br><span class="line">                         CacheKey key, BoundSql boundSql) throws SQLException &#123;</span><br><span class="line">    list = resultHandler == null ? (List&lt;E&gt;) localCache.getObject(key) : null;</span><br><span class="line">    if (list != null) &#123;</span><br><span class="line">        handleLocallyCachedOutputParameters(ms, key, parameter, boundSql);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        list = queryFromDatabase(ms, parameter, rowBounds, resultHandler, key, boundSql);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>而查库的时候，也是按照标准的写法，首先在缓存中写入一个占位符（为啥要这样？），然后查库，最后清除占位符再把实际数据写进去</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">BaseExecutor</span><br><span class="line"></span><br><span class="line">private &lt;E&gt; List&lt;E&gt; queryFromDatabase(MappedStatement ms, Object parameter, </span><br><span class="line">                                      RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, </span><br><span class="line">                                      BoundSql boundSql) throws SQLException &#123;</span><br><span class="line">    localCache.putObject(key, EXECUTION_PLACEHOLDER);</span><br><span class="line">    try &#123;</span><br><span class="line">      list = doQuery(ms, parameter, rowBounds, resultHandler, boundSql);</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">      localCache.removeObject(key);</span><br><span class="line">    &#125;</span><br><span class="line">    localCache.putObject(key, list);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接下来，看看一级缓存的具体实现，其实例化是在Executor的构造函数中，Perpetual是永久的意思，表明它是一直存在的</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">protected BaseExecutor(Configuration configuration, Transaction transaction) &#123;</span><br><span class="line">    ...</span><br><span class="line">    this.localCache = new PerpetualCache(&quot;LocalCache&quot;);</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再看看其实现，非常简单，就是一个HashMap，所以倒过来，我们可以想想，Executor非线程安全（因为Cache），SqlSession也非线程安全（因为Executor）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">public class PerpetualCache implements Cache &#123;</span><br><span class="line">    private final Map&lt;Object, Object&gt; cache = new HashMap&lt;&gt;();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>还有个问题，既然运用了缓存，那么必然存在脏读脏写的问题，如果另一个线程更新了数据会如何呢？<br>实际上，在更新操作发生之前，就会对缓存进行清除，而Mybatis的做法是：全部清除<br>clearLocalCache调用的就是PerpetualCache中HashMap的clear方法</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">BaseExecutor</span><br><span class="line"></span><br><span class="line">public int update(MappedStatement ms, Object parameter) throws SQLException &#123;</span><br><span class="line">    clearLocalCache();</span><br><span class="line">    return doUpdate(ms, parameter);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>回到第一个问题，CacheKey是如何被计算出来的，在真正的query之前，会通过createCacheKey计算出CacheKey对象，<br>简单的看看这个方法，key值和MappedStatement的Id（类名.方法名），RowBounds，sql语句，value，Environment的Id有关，而value的值和传入参数相关</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">BaseExecutor</span><br><span class="line"></span><br><span class="line">public CacheKey createCacheKey(MappedStatement ms, Object parameterObject, RowBounds rowBounds, BoundSql boundSql) &#123;</span><br><span class="line">    CacheKey cacheKey = new CacheKey();</span><br><span class="line">    cacheKey.update(ms.getId());</span><br><span class="line">    cacheKey.update(rowBounds.getOffset());</span><br><span class="line">    cacheKey.update(rowBounds.getLimit());</span><br><span class="line">    cacheKey.update(boundSql.getSql());</span><br><span class="line">    cacheKey.update(value);</span><br><span class="line">    cacheKey.update(configuration.getEnvironment().getId());</span><br><span class="line">    </span><br><span class="line">    return cacheKey;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再看key的update方法，该方法的目标就是计算出key的hash值（想想HashMap的put方法实现），具体是将（传入参数的hash值乘以<br>当前已经update的对象的个数）然后加上（CacheKey的hash值乘以multiplier（默认37）的值）<br>这么做我想是为了尽量减少哈希的冲突</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">CacheKey</span><br><span class="line"></span><br><span class="line">public void update(Object object) &#123;</span><br><span class="line">    int baseHashCode = object == null ? 1 : ArrayUtil.hashCode(object);</span><br><span class="line"></span><br><span class="line">    count++;</span><br><span class="line">    checksum += baseHashCode;</span><br><span class="line">    baseHashCode *= count;</span><br><span class="line"></span><br><span class="line">    hashcode = multiplier * hashcode + baseHashCode;</span><br><span class="line"></span><br><span class="line">    updateList.add(object);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>###二级缓存</p>
+<p>之前有提到，BaseExecutor中有个子类是CachingExecutor，这就是运用二级缓存应用的地方，我们首先找到其query方法，把运用缓存那一段抽出来<br>可以看出，这个Cache并不是Executor的成员，而是MappedStatement的。然而，对象的提取并不是直接从这个cache拿出来的，而是通过<br>TransactionalCacheManager（代码中的tcm）。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">CachingExecutor</span><br><span class="line"></span><br><span class="line">public &lt;E&gt; List&lt;E&gt; query(MappedStatement ms, Object parameterObject, RowBounds rowBounds, ResultHandler resultHandler, </span><br><span class="line">                         CacheKey key, BoundSql boundSql) throws SQLException &#123;</span><br><span class="line">    Cache cache = ms.getCache();</span><br><span class="line">    flushCacheIfRequired(ms);</span><br><span class="line">    List&lt;E&gt; list = (List&lt;E&gt;) tcm.getObject(cache, key);</span><br><span class="line">    if (list == null) &#123;</span><br><span class="line">        list = delegate.query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);</span><br><span class="line">        tcm.putObject(cache, key, list); </span><br><span class="line">    &#125;</span><br><span class="line">    return list;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>观察TransactionalCacheManager的结构，其维护了Cache和TransactionalCache对，真正的操作发生在TransactionalCache上<br>这里或许有个疑问，那就是为什么设置两个cache？其实这里是一个巧妙的做法，作为key的Cache是缓存的具体实现，而作为value的TransactionalCache是对<br>key的封装，并提供一个统一的与事务相关的功能。观察getTransactionalCache方法的实现，传入的cache实际是TransactionalCache的构造函数的参数</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">public class TransactionalCacheManager &#123;</span><br><span class="line">    private final Map&lt;Cache, TransactionalCache&gt; transactionalCaches = new HashMap&lt;&gt;();</span><br><span class="line"></span><br><span class="line">    public Object getObject(Cache cache, CacheKey key) &#123;</span><br><span class="line">        return getTransactionalCache(cache).getObject(key);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    private TransactionalCache getTransactionalCache(Cache cache) &#123;</span><br><span class="line">        return transactionalCaches.computeIfAbsent(cache, TransactionalCache::new);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>继续看TransactionalCache的实现，该类维护了很多成员变量，这里的delegate即上述真正的实现类，entriesToAddOnCommit是事务提交时<br>才会添加缓存的对象，entriesMissedInCache是未命中缓存的key集合。<br>可以看到，putObject并没有把待缓存对象直接放入delegate中，而是放入了entriesToAddOnCommit，同时getObject在delegate中未找到时会把key<br>添加到entriesMissedInCache。那么问题来了，待缓存对象什么时候能添加到真正的delegate中呢？答案是调用其commit方法时。<br>commit方法（这里只截取了部分代码）调用了flushPendingEntries，该方法会遍历entriesToAddOnCommit，然后再通过delegate添加缓存</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">public class TransactionalCache implements Cache &#123;</span><br><span class="line"></span><br><span class="line">    public TransactionalCache(Cache delegate) &#123;</span><br><span class="line">        this.delegate = delegate;</span><br><span class="line">        this.clearOnCommit = false;</span><br><span class="line">        this.entriesToAddOnCommit = new HashMap&lt;&gt;();</span><br><span class="line">        this.entriesMissedInCache = new HashSet&lt;&gt;();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    @Override</span><br><span class="line">    public void putObject(Object key, Object object) &#123;</span><br><span class="line">        entriesToAddOnCommit.put(key, object);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    @Override</span><br><span class="line">    public Object getObject(Object key) &#123;</span><br><span class="line">        Object object = delegate.getObject(key);</span><br><span class="line"></span><br><span class="line">        if (object == null) &#123;</span><br><span class="line">              entriesMissedInCache.add(key);</span><br><span class="line">        &#125;</span><br><span class="line">        return object;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    public void commit() &#123;</span><br><span class="line">        flushPendingEntries();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>那么，TransactionalCache的commit又是什么时候调用的呢？答案是通过TransactionalCacheManager的commit，而该commit<br>是由Executor的commit调用，而Executor的commit最终由SqlSession调用。<br>可以看出，二级缓存是通过事务提交而生效的。</p>
+<p>尽管Mybatis中的Cache的实现看起来多种多样，但这些所谓的”实现”都只是装饰类，仅仅是用名称表明功能而已。</p>
+
+      
+    </div>
+    <div class="article-footer">
+      <blockquote class="mt-2x">
+  <ul class="post-copyright list-unstyled">
+    
+    
+    <li class="post-copyright-license">
+      <strong>版权声明： </strong> 本博客所有文章除特别声明外，均采用 <a href="http://creativecommons.org/licenses/by/4.0/deed.zh" target="_blank" rel="external">CC BY 4.0 CN协议</a> 许可协议。转载请注明出处！
+    </li>
+  </ul>
+</blockquote>
+
+
+<div class="panel panel-default panel-badger">
+  <div class="panel-body">
+    <figure class="media">
+      <div class="media-left">
+        <a href="https://github.com/OswaldZhuang" target="_blank" class="img-burn thumb-sm visible-lg">
+          <img src="/images/avatar.jpg" class="img-rounded w-full" alt="">
+        </a>
+      </div>
+      <div class="media-body">
+        <h3 class="media-heading"><a href="https://github.com/OswaldZhuang" target="_blank"><span class="text-dark">Oswald Zhuang</span><small class="ml-1x">Java开发工程师</small></a></h3>
+        <div>一个朴实无华又低调的程序小弟</div>
+      </div>
+    </figure>
+  </div>
+</div>
+
+
+    </div>
+  </article>
+  
+    
+  <section id="comments">
+  	
+
+    
+  </section>
+
+
+  
+</div>
+
+  <nav class="bar bar-footer clearfix" data-stick-bottom>
+  <div class="bar-inner">
+  
+  <ul class="pager pull-left">
+    
+    <li class="prev">
+      <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" title="Spring bean的获取过程"><i class="icon icon-angle-left" aria-hidden="true"></i><span>&nbsp;&nbsp;Newer</span></a>
+    </li>
+    
+    
+    <li class="next">
+      <a href="/2020/01/28/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90%E7%BB%93%E6%9E%9C%E9%9B%86%E7%9A%84/" title="Mybatis是如何解析结果集的"><span>Older&nbsp;&nbsp;</span><i class="icon icon-angle-right" aria-hidden="true"></i></a>
+    </li>
+    
+    
+  </ul>
+  
+  
+  <!-- Button trigger modal -->
+  <button type="button" class="btn btn-fancy btn-donate pop-onhover bg-gradient-warning" data-toggle="modal" data-target="#donateModal"><span>$</span></button>
+  <!-- <div class="wave-icon wave-icon-danger btn-donate" data-toggle="modal" data-target="#donateModal">
+    <div class="wave-circle"><span class="icon"><i class="icon icon-bill"></i></span></div>
+  </div> -->
+  
+  
+  <div class="bar-right">
+    
+    <div class="share-component" data-sites="weibo,qq,wechat,facebook,twitter" data-mobile-sites="weibo,qq,qzone"></div>
+    
+  </div>
+  </div>
+</nav>
+  
+<!-- Modal -->
+<div class="modal modal-center modal-small modal-xs-full fade" id="donateModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content donate">
+      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      <div class="modal-body">
+        <div class="donate-box">
+          <div class="donate-head">
+            <p>Maybe you could buy me a cup of coffee.</p>
+          </div>
+          <div class="tab-content">
+            <div role="tabpanel" class="tab-pane fade active in" id="alipay">
+              <div class="donate-payimg">
+                <img src="/images/donate/alipayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open alipay app scan this qrcode, buy me a coffee!</p>
+            </div>
+            <div role="tabpanel" class="tab-pane fade" id="wechatpay">
+              <div class="donate-payimg">
+                <img src="/images/donate/wechatpayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open wechat app scan this qrcode, buy me a coffee!</p>
+            </div>
+          </div>
+          <div class="donate-footer">
+            <ul class="nav nav-tabs nav-justified" role="tablist">
+              <li role="presentation" class="active">
+                <a href="#alipay" id="alipay-tab" role="tab" data-toggle="tab" aria-controls="alipay" aria-expanded="true"><i class="icon icon-alipay"></i> alipay</a>
+              </li>
+              <li role="presentation" class="">
+                <a href="#wechatpay" role="tab" id="wechatpay-tab" data-toggle="tab" aria-controls="wechatpay" aria-expanded="false"><i class="icon icon-wepay"></i> wechat payment</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</main>
+
+  <footer class="footer" itemscope itemtype="http://schema.org/WPFooter">
+	
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    <div class="copyright">
+    	
+        <div class="publishby">
+		power by hexo
+        </div>
+    </div>
+</footer>
+
+  <script src="//cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+<script>
+window.jQuery || document.write('<script src="js/jquery.min.js"><\/script>')
+</script>
+<script src="/js/plugin.min.js"></script>
+<script src="/js/application.js"></script>
+
+    <script>
+(function (window) {
+    var INSIGHT_CONFIG = {
+        TRANSLATION: {
+            POSTS: 'Posts',
+            PAGES: 'Pages',
+            CATEGORIES: 'Categories',
+            TAGS: 'Tags',
+            UNTITLED: '(Untitled)',
+        },
+        ROOT_URL: '/',
+        CONTENT_URL: '/content.json',
+    };
+    window.INSIGHT_CONFIG = INSIGHT_CONFIG;
+})(window);
+</script>
+<script src="/js/insight.js"></script>
+
+
+
+
+
+   
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+   
+    
+<script src="//cdn.jsdelivr.net/npm/gitment@0.0.3/dist/gitment.browser.min.js"></script>
+<script>
+var gitment = new Gitment({
+  // id默认为当前页面url，如果url后带参数或锚点，gitment要重新初始化
+  // https://github.com/imsun/gitment/issues/55
+  // 解决方案：id:window.location.pathname,或者将id设置为当前页面标题
+  id: 'OswaldZhuang', 
+  owner: 'OswaldZhuang', // 可以是你的GitHub用户名，也可以是github id
+  repo: 'OswaldZhuang.github.io',
+  oauth: {
+    client_id: '5602f040dc37e1c3e43e',
+    client_secret: '6311a0c22ce2c2971d73335783b8168844469f18',
+  }
+})
+gitment.render('comments')
+</script>
+
+
+
+
+
+
+
+
+
+</body>
+</html>

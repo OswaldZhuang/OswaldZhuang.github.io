@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+  <meta charset="utf-8">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="Cache-Control" content="no-transform" />
+  <meta http-equiv="Cache-Control" content="no-siteapp" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no,email=no,adress=no">
+  <!-- Color theme for statusbar -->
+  <meta name="theme-color" content="#000000" />
+  <!-- 强制页面在当前窗口以独立页面显示,防止别人在框架里调用页面 -->
+  <meta http-equiv="window-target" content="_top" />
+  
+  
+  <title>Mybatis是如何执行sql的 | Oswald</title>
+  <meta name="description" content="mybatis 3.5.4  到这里，我们已经知道经过各种初始化和解析，Mapper中的sql以及相应的其他信息被封装进了MappedStatement中，而Mapper接口被注册进了MapperRegistry，有了这些”原材料”，就可以开始执行sql了。在说明sql如何执行的时候，我们还需要关注：参数如何被设置到sql中，结果如何与对象映射（这也是mybatis的设计初衷），缓存和事务是如何">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mybatis是如何执行sql的">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;31&#x2F;Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E6%89%A7%E8%A1%8Csql%E7%9A%84&#x2F;index.html">
+<meta property="og:site_name" content="Oswald">
+<meta property="og:description" content="mybatis 3.5.4  到这里，我们已经知道经过各种初始化和解析，Mapper中的sql以及相应的其他信息被封装进了MappedStatement中，而Mapper接口被注册进了MapperRegistry，有了这些”原材料”，就可以开始执行sql了。在说明sql如何执行的时候，我们还需要关注：参数如何被设置到sql中，结果如何与对象映射（这也是mybatis的设计初衷），缓存和事务是如何">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2020-01-05T04:09:58.549Z">
+<meta name="twitter:card" content="summary">
+  <!-- Canonical links -->
+  <link rel="canonical" href="http://yoursite.com/2019/12/31/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E6%89%A7%E8%A1%8Csql%E7%9A%84/index.html">
+  
+    <link rel="alternate" href="/atom.xml" title="Oswald" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png" type="image/x-icon">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+  
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitment@0.0.3/style/default.min.css">
+  
+  
+  
+</head>
+
+
+<body class="main-center" itemscope itemtype="http://schema.org/WebPage">
+  <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+  <div class="slimContent">
+    <div class="navbar-header">
+      
+      
+      <div class="profile-block text-center">
+        <a id="avatar" href="https://github.com/OswaldZhuang" target="_blank">
+          <img class="img-circle img-rotate" src="/images/avatar.jpg" width="200" height="200">
+        </a>
+        <h2 id="name" class="hidden-xs hidden-sm">Oswald Zhuang</h2>
+        <h3 id="title" class="hidden-xs hidden-sm hidden-md">Java开发工程师</h3>
+        <small id="location" class="text-muted hidden-xs hidden-sm"><i class="icon icon-map-marker"></i> Shanghai, China</small>
+      </div>
+      
+      <div class="search" id="search-form-wrap">
+
+    <form class="search-form sidebar-form">
+        <div class="input-group">
+            <input type="text" class="search-form-input form-control" placeholder="Search" />
+            <span class="input-group-btn">
+                <button type="submit" class="search-form-submit btn btn-flat" onclick="return false;"><i class="icon icon-search"></i></button>
+            </span>
+        </div>
+    </form>
+    <div class="ins-search">
+  <div class="ins-search-mask"></div>
+  <div class="ins-search-container">
+    <div class="ins-input-wrapper">
+      <input type="text" class="ins-search-input" placeholder="Type something..." x-webkit-speech />
+      <button type="button" class="close ins-close ins-selectable" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+    </div>
+    <div class="ins-section-wrapper">
+      <div class="ins-section-container"></div>
+    </div>
+  </div>
+</div>
+
+
+</div>
+      <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <nav id="main-navbar" class="collapse navbar-collapse" itemscope itemtype="http://schema.org/SiteNavigationElement" role="navigation">
+      <ul class="nav navbar-nav main-nav ">
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/.">
+            
+            <i class="icon icon-home-fill"></i>
+            
+            <span class="menu-title">Home</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives">
+            
+            <i class="icon icon-archives-fill"></i>
+            
+            <span class="menu-title">Archives</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories">
+            
+            <i class="icon icon-folder"></i>
+            
+            <span class="menu-title">Categories</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags">
+            
+            <i class="icon icon-tags"></i>
+            
+            <span class="menu-title">Tags</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-repository">
+          <a href="/repository">
+            
+            <i class="icon icon-project"></i>
+            
+            <span class="menu-title">Repository</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-books">
+          <a href="/books">
+            
+            <i class="icon icon-book-fill"></i>
+            
+            <span class="menu-title">Books</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-links">
+          <a href="/links">
+            
+            <i class="icon icon-friendship"></i>
+            
+            <span class="menu-title">Links</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about">
+            
+            <i class="icon icon-cup-fill"></i>
+            
+            <span class="menu-title">About</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    </nav>
+  </div>
+</header>
+
+  
+    <aside class="sidebar" itemscope itemtype="http://schema.org/WPSideBar">
+  <div class="slimContent">
+    
+      <div class="widget">
+    <h3 class="widget-title">Board</h3>
+    <div class="widget-body">
+        <div id="board">
+            <div class="content">
+                <p>天青色等烟雨</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget-body">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%84%9F%E6%82%9F/">感悟</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><span class="category-list-count">10</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mysql/">mysql</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a><span class="category-list-count">3</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%97%85%E8%A1%8C/">旅行</a><span class="category-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+
+    
+      
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Archive</h3>
+    <div class="widget-body">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/02/">二月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/01/">一月 2020</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/12/">十二月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/11/">十一月 2019</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/10/">十月 2019</a><span class="archive-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget-body">
+      <ul class="recent-post-list list-unstyled no-thumbnail">
+        
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/27/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%882%EF%BC%89/" class="title">Spring对bean的加载顺序（2）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-26T20:52:47.000Z" itemprop="datePublished">2020-02-26</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/" class="title">Spring对bean的加载顺序（1）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-23T15:58:21.000Z" itemprop="datePublished">2020-02-23</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" class="title">Spring bean的获取过程</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/" class="title">Mybatis的缓存机制</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/01/28/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90%E7%BB%93%E6%9E%9C%E9%9B%86%E7%9A%84/" class="title">Mybatis是如何解析结果集的</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-01-27T16:43:25.000Z" itemprop="datePublished">2020-01-27</time>
+              </p>
+            </div>
+          </li>
+          
+      </ul>
+    </div>
+  </div>
+  
+
+    
+  </div>
+</aside>
+
+  
+  
+<main class="main" role="main">
+  <div class="content">
+  <article id="post-Mybatis是如何执行sql的" class="article article-type-post" itemscope itemtype="http://schema.org/BlogPosting">
+    
+    <div class="article-header">
+      
+        
+  
+    <h1 class="article-title" itemprop="name">
+      Mybatis是如何执行sql的
+    </h1>
+  
+
+      
+      <div class="article-meta">
+        <span class="article-date">
+    <i class="icon icon-calendar-check"></i>
+	<a href="/2019/12/31/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E6%89%A7%E8%A1%8Csql%E7%9A%84/" class="article-date">
+	  <time datetime="2019-12-30T23:02:00.000Z" itemprop="datePublished">2019-12-30</time>
+	</a>
+</span>
+        
+  <span class="article-category">
+    <i class="icon icon-folder"></i>
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a>►<a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+  </span>
+
+        
+
+        
+	<span class="article-read hidden-xs">
+	    <i class="icon icon-eye-fill" aria-hidden="true"></i>
+	    <span id="busuanzi_container_page_pv">
+			<span id="busuanzi_value_page_pv">0</span>
+		</span>
+	</span>
+
+
+        <span class="post-comment"><i class="icon icon-comment"></i> <a href="/2019/12/31/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E6%89%A7%E8%A1%8Csql%E7%9A%84/#comments" class="article-comment-link">Comments</a></span>
+        
+	
+		<span class="post-wordcount hidden-xs" itemprop="wordCount">Word Count: 2.2k(words)</span>
+	
+	
+		<span class="post-readcount hidden-xs" itemprop="timeRequired">Read Count: 9(minutes)</span>
+	
+
+      </div>
+    </div>
+    <div class="article-entry marked-body" itemprop="articleBody">
+      
+        <blockquote>
+<p>mybatis 3.5.4</p>
+</blockquote>
+<p>到这里，我们已经知道经过各种初始化和解析，Mapper中的sql以及相应的其他信息被封装进了MappedStatement中，<br>而Mapper接口被注册进了MapperRegistry，<br>有了这些”原材料”，就可以开始执行sql了。<br>在说明sql如何执行的时候，我们还需要关注：参数如何被设置到sql中，结果如何与对象映射（这也是mybatis的设计初衷），<br>缓存和事务是如何运行的。</p>
+<p>那么我们开始。</p>
+<p>SqlSessionFactory已经准备就绪，这个时候就需要产生SqlSession，我们仍然抽出主体代码<br>首先可以看到，我们会通过TransactionFactory创建出相应的Transaction，然后由Transaction构造出Executor，<br>这里，Executor就是具体的sql执行器，待会儿会重点讨论。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">DefaultSqlSessionFactory</span><br><span class="line"></span><br><span class="line">private SqlSession openSessionFromDataSource(ExecutorType execType, </span><br><span class="line">    TransactionIsolationLevel level, boolean autoCommit) &#123;</span><br><span class="line">    final Environment environment = configuration.getEnvironment();</span><br><span class="line">    final TransactionFactory transactionFactory = getTransactionFactoryFromEnvironment(environment);</span><br><span class="line">    tx = transactionFactory.newTransaction(environment.getDataSource(), level, autoCommit);</span><br><span class="line">    final Executor executor = configuration.newExecutor(tx, execType);</span><br><span class="line">    return new DefaultSqlSession(configuration, executor, autoCommit);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Transaction的类型由JdbcTransaction和ManagedTransaction，前者所有事务操作（提交，回滚等）都是借助于jdbc的Connection<br>进行的，而后者则并没有。</p>
+<p>我们跳进configuration.newExecutor这句代码，这里，会根据executorType来决定产生什么样的Executor，比如批处理类型，复用型，缓存型<br>这几种类型的Executor后面会详细讲解。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">Configuration</span><br><span class="line"></span><br><span class="line">public Executor newExecutor(Transaction transaction, ExecutorType executorType) &#123;</span><br><span class="line">    if (ExecutorType.BATCH == executorType) &#123;</span><br><span class="line">      executor = new BatchExecutor(this, transaction);</span><br><span class="line">    &#125; else if (ExecutorType.REUSE == executorType) &#123;</span><br><span class="line">      executor = new ReuseExecutor(this, transaction);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      executor = new SimpleExecutor(this, transaction);</span><br><span class="line">    &#125;</span><br><span class="line">    if (cacheEnabled) &#123;</span><br><span class="line">      executor = new CachingExecutor(executor);</span><br><span class="line">    &#125;</span><br><span class="line">    executor = (Executor) interceptorChain.pluginAll(executor);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>重点关注最后一句，其实这就是mybatis提供的插件功能，通过实现自己的Interceptor来对executor的接口方法进行增强，<br>我们可以看看interceptorChain.pluginAll究竟做了什么事情，这是个责任链模式，每个Interceptor的plugin方法的返回<br>值都会作为下一个plugin方法的传入参数。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">InterceptorChain</span><br><span class="line"></span><br><span class="line">public Object pluginAll(Object target) &#123;</span><br><span class="line">    for (Interceptor interceptor : interceptors) &#123;</span><br><span class="line">      target = interceptor.plugin(target);</span><br><span class="line">    &#125;</span><br><span class="line">    return target;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>再跳进interceptor.plugin方法。这是一个接口的默认方法，如果再深入，我们可以知道静态wrap方法返回的是一个jdk的<br>动态代理，被代理的方法是target的接口方法，具体如何代理，取决于Interceptor的intercept方法的实现，而它的参数<br>Invocation正好是target的接口方法的一个调用（是不是有点晕，仔细看看代码就能理解上述的话）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Interceptor</span><br><span class="line"></span><br><span class="line">default Object plugin(Object target) &#123;</span><br><span class="line">    return Plugin.wrap(target, this);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们回过头来，SqlSession已经创建完成，这个时候，我们开始执行sql。我们知道，mybatis执行sql有两种方式，一种是通过<br>SqlSession的crud方法（传入接口名.方法名），第二种是获取Mapper对象，再通过Mapper对象的方法执行。我们重点讨论第二种<br>（因为这是用的最多的情况）。</p>
+<p>还记得上篇文章的MapperRegistry吗，我们的Mapper是注册到这个对象的，因此，获取Mapper我们也从这个对象获取。<br>MapperProxyFactory在之前初始化阶段就已经加入到knownMappers，因此这里可以通过类型获取。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MapperRegistry</span><br><span class="line"></span><br><span class="line">public &lt;T&gt; T getMapper(Class&lt;T&gt; type, SqlSession sqlSession) &#123;</span><br><span class="line">    final MapperProxyFactory&lt;T&gt; mapperProxyFactory = (MapperProxyFactory&lt;T&gt;) knownMappers.get(type);</span><br><span class="line">    return mapperProxyFactory.newInstance(sqlSession);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们进入到mapperProxyFactory.newInstance，可以看到MapperProxy实现了InvocationHandler，<br>而newInstance方法返回的是JDK动态代理对象，所以这里，我们也知道了，声明的Mapper接口会变成动态代理对象，从而执行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MapperProxyFactory</span><br><span class="line"></span><br><span class="line">public T newInstance(SqlSession sqlSession) &#123;</span><br><span class="line">    final MapperProxy&lt;T&gt; mapperProxy = new MapperProxy&lt;&gt;(sqlSession, mapperInterface, methodCache);</span><br><span class="line">    return newInstance(mapperProxy);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>重点来看MapperProxy类，可以看到静态代码块里面有些和方法有关的初始化的内容，我们暂且不关心。看其invoke方法<br>可以看到，Mapper的接口方法被转化为了MapperMethod并缓存了起来，调用的时候是调用mapperMethod。那么转化过程是如何的呢？</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MapperProxy</span><br><span class="line"></span><br><span class="line">public Object invoke(Object proxy, Method method, Object[] args) throws Throwable &#123;</span><br><span class="line">    final MapperMethod mapperMethod = cachedMapperMethod(method);</span><br><span class="line">    return mapperMethod.execute(sqlSession, args);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>实际上MapperMethod由2个部分组成：SqlCommand和MethodSignature，这个两个类的构造参数都是一样的。那么他们有什么不同呢？</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MapperMethod</span><br><span class="line"></span><br><span class="line">public MapperMethod(Class&lt;?&gt; mapperInterface, Method method, Configuration config) &#123;</span><br><span class="line">    this.command = new SqlCommand(config, mapperInterface, method);</span><br><span class="line">    this.method = new MethodSignature(config, mapperInterface, method);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>首先看SqlCommand，可以看出首先会找到对应的MappedStatement，然后设置其name与type（比如@Select，type就是select）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">SqlCommand</span><br><span class="line"></span><br><span class="line">public SqlCommand(Configuration configuration, Class&lt;?&gt; mapperInterface, Method method) &#123;</span><br><span class="line">    final String methodName = method.getName();</span><br><span class="line">    final Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span><br><span class="line">    MappedStatement ms = resolveMappedStatement(mapperInterface, methodName, declaringClass,</span><br><span class="line">              configuration);</span><br><span class="line">    name = ms.getId();</span><br><span class="line">    type = ms.getSqlCommandType();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>继续看MethodSignature，核心是找到Mapper方法的返回值类型，这里，会判断返回值类型，一共有四种：TypeVariable（类型变量，T），<br>ParameterizedType（参数化类型，比如List<T>），GenericArrayType（数组类型，比如T[]），一般类型（比如String）</T></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MethodSignature</span><br><span class="line"></span><br><span class="line">public MethodSignature(Configuration configuration, Class&lt;?&gt; mapperInterface, Method method) &#123;</span><br><span class="line">      Type resolvedReturnType = TypeParameterResolver.resolveReturnType(method, mapperInterface);</span><br><span class="line">      ... </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>不同的返回类型会经过不同的处理，<br>对于TypeVariable，会首先获取继承的类型，如果有，则取第一个，没有的话就返回Object.class<br>对于ParameterizedType，resolveParameterizedType方法会将尖括号中的参数取出，依次进行处理，最后返回ParameterizedTypeImpl<br>对于GenericArrayType，resolveGenericArrayType会将数组元素类型拿出来，然后进行处理，最后返回GenericArrayTypeImpl<br>其他类型的话直接返回</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">private static Type resolveType(Type type, Type srcType, Class&lt;?&gt; declaringClass) &#123;</span><br><span class="line">    if (type instanceof TypeVariable) &#123;</span><br><span class="line">      return resolveTypeVar((TypeVariable&lt;?&gt;) type, srcType, declaringClass);</span><br><span class="line">    &#125; else if (type instanceof ParameterizedType) &#123;</span><br><span class="line">      return resolveParameterizedType((ParameterizedType) type, srcType, declaringClass);</span><br><span class="line">    &#125; else if (type instanceof GenericArrayType) &#123;</span><br><span class="line">      return resolveGenericArrayType((GenericArrayType) type, srcType, declaringClass);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">      return type;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回到MethodSignature的构造方法，除了设置返回类型以外，还设置了其他属性，详见注释</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">MethodSignature</span><br><span class="line"></span><br><span class="line">public MethodSignature(Configuration configuration, Class&lt;?&gt; mapperInterface, Method method) &#123;</span><br><span class="line">    ...</span><br><span class="line">    // 是否返回void</span><br><span class="line">    this.returnsVoid = void.class.equals(this.returnType);</span><br><span class="line">    // 是否返回值有多个</span><br><span class="line">    this.returnsMany = configuration.getObjectFactory().isCollection(this.returnType) || this.returnType.isArray();</span><br><span class="line">    // 是否返回游标</span><br><span class="line">    this.returnsCursor = Cursor.class.equals(this.returnType);</span><br><span class="line">    // 是否返回Optional</span><br><span class="line">    this.returnsOptional = Optional.class.equals(this.returnType);</span><br><span class="line">    // @MapKey注解中的返回Map类型的key值</span><br><span class="line">    this.mapKey = getMapKey(method);</span><br><span class="line">    // 是否返回Map</span><br><span class="line">    this.returnsMap = this.mapKey != null;</span><br><span class="line">    // RowBounds类型在方法参数列表的位置</span><br><span class="line">    this.rowBoundsIndex = getUniqueParamIndex(method, RowBounds.class);</span><br><span class="line">    // ResultHandler类型在方法参数列表的位置</span><br><span class="line">    this.resultHandlerIndex = getUniqueParamIndex(method, ResultHandler.class);</span><br><span class="line">    // 参数解析器，构造器中，如果有参数有@Param修饰，那么参数名取注解中的value值，否则直接取声明的参数名字</span><br><span class="line">    // 最后这些参数名会放入到SortedMap中（key是参数位置）</span><br><span class="line">    this.paramNameResolver = new ParamNameResolver(configuration, method);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>MapperMethod就这么被构造完成了，那么就可以执行了，执行的时候调用的是execute方法，可以看到，该方法会根据前面的<br>SqlCommand的类型来决定如何执行，而实际的执行是调用SqlSession的增删改查方法（还记得开头说的两种调用方式吗，本质<br>来说是一种），这里面，比较复杂的是select，这个会最后说。<br>这里增删改查的所有步骤都会包含convertArgsToSqlCommandParam这样一个过程，刚才ParamNameResolver的构造器实际上<br>已经将方法参数转化为一个Map，这里是针对不同情况分别转化（参数为空返回null，只有一个参数，那么直接返回参数值，否则会返回<br>一个ParamMap，key是参数名，value是参数值，不仅如此，这个Map里面还加入了普通参数名，即key为param1，param2…<br>value为参数值）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">MapperMethod</span><br><span class="line"></span><br><span class="line">public Object execute(SqlSession sqlSession, Object[] args) &#123;</span><br><span class="line">    Object result;</span><br><span class="line">        switch (command.getType()) &#123;</span><br><span class="line">            case INSERT: &#123;</span><br><span class="line">                Object param = method.convertArgsToSqlCommandParam(args);</span><br><span class="line">                result = rowCountResult(sqlSession.insert(command.getName(), param));</span><br><span class="line">                break;</span><br><span class="line">            &#125;</span><br><span class="line">            case UPDATE: &#123;</span><br><span class="line">                ...</span><br><span class="line">            &#125;</span><br><span class="line">            case DELETE: &#123;</span><br><span class="line">                ...</span><br><span class="line">            &#125;</span><br><span class="line">            case SELECT: &#123;</span><br><span class="line">                ...</span><br><span class="line">            &#125;</span><br><span class="line">            case FLUSH: &#123;</span><br><span class="line">                ...</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>现在正式进入到具体的执行方法中，首先看insert，跳进去可以发现，insert其实是调用的update，<br>而一切的一切，最终的执行都是落在Executor上。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">DefaultSqlSession</span><br><span class="line"></span><br><span class="line">@Override</span><br><span class="line">public int insert(String statement, Object parameter) &#123;</span><br><span class="line">    return update(statement, parameter);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">@Override</span><br><span class="line">public int update(String statement, Object parameter) &#123;</span><br><span class="line">    MappedStatement ms = configuration.getMappedStatement(statement);</span><br><span class="line">    return executor.update(ms, wrapCollection(parameter));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>前面有提到过，Executor的构造是通过ExecutorType来选择的，实际上不同的Executor只是在BaseExecutor的基础上<br>继承重写。BaseExecutor是一个模版类，定了update，query等方法，而真正的实现（doUpdate，doQuery）是抽象方法，<br>委托给子类，我们这里讨论SimpleExecutor的实现</p>
+<p>可以看出，执行的时候需要的两个最重要元素：MappedStatement（初始化的时候已经注册，此时直接取出即可），StatementHandler。<br>StatementHandler负责产生出Statement（JDBC规范）以及执行Statement。这个时候我们的sql就被执行完成了。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">BaseExectutor</span><br><span class="line"></span><br><span class="line">public int update(MappedStatement ms, Object parameter) throws SQLException &#123;</span><br><span class="line">    clearLocalCache();</span><br><span class="line">    return doUpdate(ms, parameter);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">SimpleExecutor</span><br><span class="line"></span><br><span class="line">@Override</span><br><span class="line">public int doUpdate(MappedStatement ms, Object parameter) throws SQLException &#123;</span><br><span class="line">    Configuration configuration = ms.getConfiguration();</span><br><span class="line">    StatementHandler handler = configuration.newStatementHandler(this, ms, parameter, RowBounds.DEFAULT, null, null);</span><br><span class="line">    Statement stmt = prepareStatement(handler, ms.getStatementLog());</span><br><span class="line">    return handler.update(stmt);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>上述过程还有很多地方没有被挖掘到，我们会在后面的章节继续分析。</p>
+
+      
+    </div>
+    <div class="article-footer">
+      <blockquote class="mt-2x">
+  <ul class="post-copyright list-unstyled">
+    
+    
+    <li class="post-copyright-license">
+      <strong>版权声明： </strong> 本博客所有文章除特别声明外，均采用 <a href="http://creativecommons.org/licenses/by/4.0/deed.zh" target="_blank" rel="external">CC BY 4.0 CN协议</a> 许可协议。转载请注明出处！
+    </li>
+  </ul>
+</blockquote>
+
+
+<div class="panel panel-default panel-badger">
+  <div class="panel-body">
+    <figure class="media">
+      <div class="media-left">
+        <a href="https://github.com/OswaldZhuang" target="_blank" class="img-burn thumb-sm visible-lg">
+          <img src="/images/avatar.jpg" class="img-rounded w-full" alt="">
+        </a>
+      </div>
+      <div class="media-body">
+        <h3 class="media-heading"><a href="https://github.com/OswaldZhuang" target="_blank"><span class="text-dark">Oswald Zhuang</span><small class="ml-1x">Java开发工程师</small></a></h3>
+        <div>一个朴实无华又低调的程序小弟</div>
+      </div>
+    </figure>
+  </div>
+</div>
+
+
+    </div>
+  </article>
+  
+    
+  <section id="comments">
+  	
+
+    
+  </section>
+
+
+  
+</div>
+
+  <nav class="bar bar-footer clearfix" data-stick-bottom>
+  <div class="bar-inner">
+  
+  <ul class="pager pull-left">
+    
+    <li class="prev">
+      <a href="/2020/01/05/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90sql%E8%AF%AD%E5%8F%A5%E7%9A%84/" title="Mybatis是如何解析sql语句的"><i class="icon icon-angle-left" aria-hidden="true"></i><span>&nbsp;&nbsp;Newer</span></a>
+    </li>
+    
+    
+    <li class="next">
+      <a href="/2019/12/29/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E7%94%9F%E6%88%90sqlMapper%E7%9A%84/" title="Mybatis是如何生成SqlMapper的"><span>Older&nbsp;&nbsp;</span><i class="icon icon-angle-right" aria-hidden="true"></i></a>
+    </li>
+    
+    
+  </ul>
+  
+  
+  <!-- Button trigger modal -->
+  <button type="button" class="btn btn-fancy btn-donate pop-onhover bg-gradient-warning" data-toggle="modal" data-target="#donateModal"><span>$</span></button>
+  <!-- <div class="wave-icon wave-icon-danger btn-donate" data-toggle="modal" data-target="#donateModal">
+    <div class="wave-circle"><span class="icon"><i class="icon icon-bill"></i></span></div>
+  </div> -->
+  
+  
+  <div class="bar-right">
+    
+    <div class="share-component" data-sites="weibo,qq,wechat,facebook,twitter" data-mobile-sites="weibo,qq,qzone"></div>
+    
+  </div>
+  </div>
+</nav>
+  
+<!-- Modal -->
+<div class="modal modal-center modal-small modal-xs-full fade" id="donateModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content donate">
+      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      <div class="modal-body">
+        <div class="donate-box">
+          <div class="donate-head">
+            <p>Maybe you could buy me a cup of coffee.</p>
+          </div>
+          <div class="tab-content">
+            <div role="tabpanel" class="tab-pane fade active in" id="alipay">
+              <div class="donate-payimg">
+                <img src="/images/donate/alipayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open alipay app scan this qrcode, buy me a coffee!</p>
+            </div>
+            <div role="tabpanel" class="tab-pane fade" id="wechatpay">
+              <div class="donate-payimg">
+                <img src="/images/donate/wechatpayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open wechat app scan this qrcode, buy me a coffee!</p>
+            </div>
+          </div>
+          <div class="donate-footer">
+            <ul class="nav nav-tabs nav-justified" role="tablist">
+              <li role="presentation" class="active">
+                <a href="#alipay" id="alipay-tab" role="tab" data-toggle="tab" aria-controls="alipay" aria-expanded="true"><i class="icon icon-alipay"></i> alipay</a>
+              </li>
+              <li role="presentation" class="">
+                <a href="#wechatpay" role="tab" id="wechatpay-tab" data-toggle="tab" aria-controls="wechatpay" aria-expanded="false"><i class="icon icon-wepay"></i> wechat payment</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</main>
+
+  <footer class="footer" itemscope itemtype="http://schema.org/WPFooter">
+	
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    <div class="copyright">
+    	
+        <div class="publishby">
+		power by hexo
+        </div>
+    </div>
+</footer>
+
+  <script src="//cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+<script>
+window.jQuery || document.write('<script src="js/jquery.min.js"><\/script>')
+</script>
+<script src="/js/plugin.min.js"></script>
+<script src="/js/application.js"></script>
+
+    <script>
+(function (window) {
+    var INSIGHT_CONFIG = {
+        TRANSLATION: {
+            POSTS: 'Posts',
+            PAGES: 'Pages',
+            CATEGORIES: 'Categories',
+            TAGS: 'Tags',
+            UNTITLED: '(Untitled)',
+        },
+        ROOT_URL: '/',
+        CONTENT_URL: '/content.json',
+    };
+    window.INSIGHT_CONFIG = INSIGHT_CONFIG;
+})(window);
+</script>
+<script src="/js/insight.js"></script>
+
+
+
+
+
+   
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+   
+    
+<script src="//cdn.jsdelivr.net/npm/gitment@0.0.3/dist/gitment.browser.min.js"></script>
+<script>
+var gitment = new Gitment({
+  // id默认为当前页面url，如果url后带参数或锚点，gitment要重新初始化
+  // https://github.com/imsun/gitment/issues/55
+  // 解决方案：id:window.location.pathname,或者将id设置为当前页面标题
+  id: 'OswaldZhuang', 
+  owner: 'OswaldZhuang', // 可以是你的GitHub用户名，也可以是github id
+  repo: 'OswaldZhuang.github.io',
+  oauth: {
+    client_id: '5602f040dc37e1c3e43e',
+    client_secret: '6311a0c22ce2c2971d73335783b8168844469f18',
+  }
+})
+gitment.render('comments')
+</script>
+
+
+
+
+
+
+
+
+
+</body>
+</html>

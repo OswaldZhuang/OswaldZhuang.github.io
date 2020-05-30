@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+  <meta charset="utf-8">
+  
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="Cache-Control" content="no-transform" />
+  <meta http-equiv="Cache-Control" content="no-siteapp" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no,email=no,adress=no">
+  <!-- Color theme for statusbar -->
+  <meta name="theme-color" content="#000000" />
+  <!-- 强制页面在当前窗口以独立页面显示,防止别人在框架里调用页面 -->
+  <meta http-equiv="window-target" content="_top" />
+  
+  
+  <title>Spring对bean的加载顺序（1） | Oswald</title>
+  <meta name="description" content="spring的容器会通过以下方式获取bean：    1.xml    2.Java的Configuration（@Bean）    3.@ComponentScan的包下面的各个类（@Component修饰）    *看到这里可能会疑惑为什么没有@Service，@Repository，@Controller等等，     实际上，如果仔细去看这些注解的话，可以知道这些注解均被@Componen">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring对bean的加载顺序（1）">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;02&#x2F;23&#x2F;Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89&#x2F;index.html">
+<meta property="og:site_name" content="Oswald">
+<meta property="og:description" content="spring的容器会通过以下方式获取bean：    1.xml    2.Java的Configuration（@Bean）    3.@ComponentScan的包下面的各个类（@Component修饰）    *看到这里可能会疑惑为什么没有@Service，@Repository，@Controller等等，     实际上，如果仔细去看这些注解的话，可以知道这些注解均被@Componen">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2020-02-26T12:51:46.011Z">
+<meta name="twitter:card" content="summary">
+  <!-- Canonical links -->
+  <link rel="canonical" href="http://yoursite.com/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/index.html">
+  
+    <link rel="alternate" href="/atom.xml" title="Oswald" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png" type="image/x-icon">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+  
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitment@0.0.3/style/default.min.css">
+  
+  
+  
+</head>
+
+
+<body class="main-center" itemscope itemtype="http://schema.org/WebPage">
+  <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+  <div class="slimContent">
+    <div class="navbar-header">
+      
+      
+      <div class="profile-block text-center">
+        <a id="avatar" href="https://github.com/OswaldZhuang" target="_blank">
+          <img class="img-circle img-rotate" src="/images/avatar.jpg" width="200" height="200">
+        </a>
+        <h2 id="name" class="hidden-xs hidden-sm">Oswald Zhuang</h2>
+        <h3 id="title" class="hidden-xs hidden-sm hidden-md">Java开发工程师</h3>
+        <small id="location" class="text-muted hidden-xs hidden-sm"><i class="icon icon-map-marker"></i> Shanghai, China</small>
+      </div>
+      
+      <div class="search" id="search-form-wrap">
+
+    <form class="search-form sidebar-form">
+        <div class="input-group">
+            <input type="text" class="search-form-input form-control" placeholder="Search" />
+            <span class="input-group-btn">
+                <button type="submit" class="search-form-submit btn btn-flat" onclick="return false;"><i class="icon icon-search"></i></button>
+            </span>
+        </div>
+    </form>
+    <div class="ins-search">
+  <div class="ins-search-mask"></div>
+  <div class="ins-search-container">
+    <div class="ins-input-wrapper">
+      <input type="text" class="ins-search-input" placeholder="Type something..." x-webkit-speech />
+      <button type="button" class="close ins-close ins-selectable" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+    </div>
+    <div class="ins-section-wrapper">
+      <div class="ins-section-container"></div>
+    </div>
+  </div>
+</div>
+
+
+</div>
+      <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+    </div>
+    <nav id="main-navbar" class="collapse navbar-collapse" itemscope itemtype="http://schema.org/SiteNavigationElement" role="navigation">
+      <ul class="nav navbar-nav main-nav ">
+        
+        
+        <li class="menu-item menu-item-home">
+          <a href="/.">
+            
+            <i class="icon icon-home-fill"></i>
+            
+            <span class="menu-title">Home</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives">
+            
+            <i class="icon icon-archives-fill"></i>
+            
+            <span class="menu-title">Archives</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories">
+            
+            <i class="icon icon-folder"></i>
+            
+            <span class="menu-title">Categories</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags">
+            
+            <i class="icon icon-tags"></i>
+            
+            <span class="menu-title">Tags</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-repository">
+          <a href="/repository">
+            
+            <i class="icon icon-project"></i>
+            
+            <span class="menu-title">Repository</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-books">
+          <a href="/books">
+            
+            <i class="icon icon-book-fill"></i>
+            
+            <span class="menu-title">Books</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-links">
+          <a href="/links">
+            
+            <i class="icon icon-friendship"></i>
+            
+            <span class="menu-title">Links</span>
+          </a>
+        </li>
+        
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about">
+            
+            <i class="icon icon-cup-fill"></i>
+            
+            <span class="menu-title">About</span>
+          </a>
+        </li>
+        
+      </ul>
+      
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    </nav>
+  </div>
+</header>
+
+  
+    <aside class="sidebar" itemscope itemtype="http://schema.org/WPSideBar">
+  <div class="slimContent">
+    
+      <div class="widget">
+    <h3 class="widget-title">Board</h3>
+    <div class="widget-body">
+        <div id="board">
+            <div class="content">
+                <p>天青色等烟雨</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget-body">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%84%9F%E6%82%9F/">感悟</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><span class="category-list-count">10</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/mysql/">mysql</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a><span class="category-list-count">3</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%97%85%E8%A1%8C/">旅行</a><span class="category-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+
+    
+      
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Archive</h3>
+    <div class="widget-body">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/02/">二月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2020/01/">一月 2020</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/12/">十二月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/11/">十一月 2019</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/10/">十月 2019</a><span class="archive-list-count">1</span></li></ul>
+    </div>
+  </div>
+
+
+    
+      
+  <div class="widget">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget-body">
+      <ul class="recent-post-list list-unstyled no-thumbnail">
+        
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/27/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%882%EF%BC%89/" class="title">Spring对bean的加载顺序（2）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-26T20:52:47.000Z" itemprop="datePublished">2020-02-26</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/" class="title">Spring对bean的加载顺序（1）</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-23T15:58:21.000Z" itemprop="datePublished">2020-02-23</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" class="title">Spring bean的获取过程</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/02/01/Mybatis%E7%9A%84%E7%BC%93%E5%AD%98%E6%9C%BA%E5%88%B6/" class="title">Mybatis的缓存机制</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-02-01T11:16:37.000Z" itemprop="datePublished">2020-02-01</time>
+              </p>
+            </div>
+          </li>
+          
+          <li>
+            
+            <div class="item-inner">
+              <p class="item-category">
+                <a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a><i class="icon icon-angle-right"></i><a class="category-link" href="/categories/%E6%8A%80%E6%9C%AF/mybatis/">mybatis</a>
+              </p>
+              <p class="item-title">
+                <a href="/2020/01/28/Mybatis%E6%98%AF%E5%A6%82%E4%BD%95%E8%A7%A3%E6%9E%90%E7%BB%93%E6%9E%9C%E9%9B%86%E7%9A%84/" class="title">Mybatis是如何解析结果集的</a>
+              </p>
+              <p class="item-date">
+                <time datetime="2020-01-27T16:43:25.000Z" itemprop="datePublished">2020-01-27</time>
+              </p>
+            </div>
+          </li>
+          
+      </ul>
+    </div>
+  </div>
+  
+
+    
+  </div>
+</aside>
+
+  
+  
+<main class="main" role="main">
+  <div class="content">
+  <article id="post-Spring对bean的加载顺序（1）" class="article article-type-post" itemscope itemtype="http://schema.org/BlogPosting">
+    
+    <div class="article-header">
+      
+        
+  
+    <h1 class="article-title" itemprop="name">
+      Spring对bean的加载顺序（1）
+    </h1>
+  
+
+      
+      <div class="article-meta">
+        <span class="article-date">
+    <i class="icon icon-calendar-check"></i>
+	<a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/" class="article-date">
+	  <time datetime="2020-02-23T15:58:21.000Z" itemprop="datePublished">2020-02-23</time>
+	</a>
+</span>
+        
+  <span class="article-category">
+    <i class="icon icon-folder"></i>
+    <a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/">技术</a>►<a class="article-category-link" href="/categories/%E6%8A%80%E6%9C%AF/spring/">spring</a>
+  </span>
+
+        
+
+        
+	<span class="article-read hidden-xs">
+	    <i class="icon icon-eye-fill" aria-hidden="true"></i>
+	    <span id="busuanzi_container_page_pv">
+			<span id="busuanzi_value_page_pv">0</span>
+		</span>
+	</span>
+
+
+        <span class="post-comment"><i class="icon icon-comment"></i> <a href="/2020/02/23/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%881%EF%BC%89/#comments" class="article-comment-link">Comments</a></span>
+        
+	
+		<span class="post-wordcount hidden-xs" itemprop="wordCount">Word Count: 1k(words)</span>
+	
+	
+		<span class="post-readcount hidden-xs" itemprop="timeRequired">Read Count: 4(minutes)</span>
+	
+
+      </div>
+    </div>
+    <div class="article-entry marked-body" itemprop="articleBody">
+      
+        <p>spring的容器会通过以下方式获取bean：<br>    1.xml<br>    2.Java的Configuration（@Bean）<br>    3.@ComponentScan的包下面的各个类（@Component修饰）<br>    *看到这里可能会疑惑为什么没有@Service，@Repository，@Controller等等，<br>     实际上，如果仔细去看这些注解的话，可以知道这些注解均被@Component修饰，<br>     事实就是spring只认@Component<br>读取这些bean的类信息，将其封装为BeanDefinition，并通过某种方式排序，为后面的refresh阶段作准备。</p>
+<p>现在，我们就来研究这一过程。</p>
+<p>如果我们去看ApplicationContext的类实现结构，我们可以发现，每一种不同的实现其实是基于bean的来源，比如<br>ClassPathXmlApplicationContext的bean来源就是class path下的xml文件<br>AnnotationConfigApplicationContext的bean来源就是注解修饰的类<br>等等</p>
+<p>由于现在很多时候我们都不用xml这种古老的方式了，故我们分析下第二种：注解方式</p>
+<p>首先看下它的众多构造函数之一：</p>
+<p>可以看到构造函数中不仅传入了BeanFactory，还新增了两个成员，从名字就可以知道他们的作用：<br>reader – 读取java Configuration类中定义的@Bean修饰成员<br>scanner – 扫描class path下面的@Component修饰的类并转化为BeanDefinition</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">public AnnotationConfigApplicationContext(DefaultListableBeanFactory beanFactory) &#123;</span><br><span class="line">		super(beanFactory);</span><br><span class="line">		this.reader = new AnnotatedBeanDefinitionReader(this);</span><br><span class="line">		this.scanner = new ClassPathBeanDefinitionScanner(this);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>直接进到doScan方法中，可以看到，其传入包路径，返回BeanDefinitionHolder，这正是我们需要关注研究的内容<br>1处的代码着重会读取class文件内容以及生成相应的bean定义<br>2处的代码会设置相关的scope信息及一些后续处理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">ClassPathBeanDefinitionScanner</span><br><span class="line"></span><br><span class="line">protected Set&lt;BeanDefinitionHolder&gt; doScan(String... basePackages) &#123;</span><br><span class="line">    for (String basePackage : basePackages) &#123;</span><br><span class="line">        Set&lt;BeanDefinition&gt; candidates = findCandidateComponents(basePackage); // 1</span><br><span class="line">        ... // 2</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>一步步跳进上面1处的代码中，可得如下代码片段<br>第一步会根据传来的包名来获取该路径下所有的Resource，为路径下的class文件，jar包内的class文件等等，<br>其中packageSearchPath的值为classpath<em>:/&lt;传入的路径&gt;/**/</em>.class，即整个类路径下的所有目录下的class文件<br>第二步，将这些resource的MateData（各种spring注解的内容）解析出来<br>本文暂时不会关心元数据的解析过程，我们还是看resource是如何读进来的</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">ClassPathScanningCandidateComponentProvider</span><br><span class="line"></span><br><span class="line">private Set&lt;BeanDefinition&gt; scanCandidateComponents(String basePackage) &#123;</span><br><span class="line"></span><br><span class="line">    Resource[] resources = getResourcePatternResolver().getResources(packageSearchPath); // 1</span><br><span class="line">    </span><br><span class="line">    for (Resource resource : resources) &#123;</span><br><span class="line">        MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource); // 2</span><br><span class="line">        if (isCandidateComponent(metadataReader)) &#123;</span><br><span class="line">            ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader);</span><br><span class="line">            sbd.setResource(resource);</span><br><span class="line">            sbd.setSource(resource);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>跳进上面1中代码<br>1处代码负责解析出根目录的resource（这里其实包含的是路径，即返回URLResource，而该过程采用ClassLoader完成），<br>比如传入的package是com.example.a，那么rootDirResource的路径就是&lt;绝对类路径&gt;/com/example/a/<br>2处代码返回本身，供扩展使用<br>接下来，会判断URL类型，比如VFS，jar，否则采用3处的方式</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">PathMatchingResourcePatternResolver</span><br><span class="line"></span><br><span class="line">protected Resource[] findPathMatchingResources(String locationPattern) throws IOException &#123;</span><br><span class="line">    String rootDirPath = determineRootDir(locationPattern);</span><br><span class="line">    Resource[] rootDirResources = getResources(rootDirPath); // 1</span><br><span class="line">    </span><br><span class="line">    for (Resource rootDirResource : rootDirResources) &#123;</span><br><span class="line">        rootDirResource = resolveRootDirResource(rootDirResource); // 2</span><br><span class="line">        ...</span><br><span class="line">        result.addAll(doFindPathMatchingFileResources(rootDirResource, subPattern)); // 3</span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>进入上面3的代码，可以很清楚的看到，是通过File的方式查找根目录下的”资源”</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">PathMatchingResourcePatternResolver</span><br><span class="line"></span><br><span class="line">protected Set&lt;Resource&gt; doFindPathMatchingFileResources(Resource rootDirResource, String subPattern)</span><br><span class="line">			throws IOException &#123;</span><br><span class="line">    File rootDir = rootDirResource.getFile().getAbsoluteFile();</span><br><span class="line">    return doFindMatchingFileSystemResources(rootDir, subPattern); // 2</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>一步步进入到2中代码里去<br>可以看到，该方法<br>首先将当前目录下的文件列出来（1处），随后对他们进行排序（2处），而排序的规则是”字典序”<br>随后，遍历这些文件，对目录类型的文件递归的调用此方法（3处），对于普通文件，加入到结果中（4处）<br>比如你传入的路径为com.example，该路径下有目录A，文件D，而A下面有B，C两个文件<br>那么最终result的结果便是A，B，C，D<br>这些File会被包装为FileSystemResource最终返回</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">PathMatchingResourcePatternResolver</span><br><span class="line"></span><br><span class="line">protected void doRetrieveMatchingFiles(String fullPattern, File dir, Set&lt;File&gt; result) throws IOException &#123;</span><br><span class="line">    File[] dirContents = dir.listFiles(); // 1</span><br><span class="line">    Arrays.sort(dirContents); // 2</span><br><span class="line">    </span><br><span class="line">    for (File content : dirContents) &#123;</span><br><span class="line">        if (content.isDirectory() &amp;&amp; getPathMatcher().matchStart(fullPattern, currPath + &quot;/&quot;)) &#123;</span><br><span class="line">            doRetrieveMatchingFiles(fullPattern, content, result); // 3</span><br><span class="line">        &#125;</span><br><span class="line">        if (getPathMatcher().match(fullPattern, currPath)) &#123;</span><br><span class="line">            result.add(content); // 4</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+      
+    </div>
+    <div class="article-footer">
+      <blockquote class="mt-2x">
+  <ul class="post-copyright list-unstyled">
+    
+    
+    <li class="post-copyright-license">
+      <strong>版权声明： </strong> 本博客所有文章除特别声明外，均采用 <a href="http://creativecommons.org/licenses/by/4.0/deed.zh" target="_blank" rel="external">CC BY 4.0 CN协议</a> 许可协议。转载请注明出处！
+    </li>
+  </ul>
+</blockquote>
+
+
+<div class="panel panel-default panel-badger">
+  <div class="panel-body">
+    <figure class="media">
+      <div class="media-left">
+        <a href="https://github.com/OswaldZhuang" target="_blank" class="img-burn thumb-sm visible-lg">
+          <img src="/images/avatar.jpg" class="img-rounded w-full" alt="">
+        </a>
+      </div>
+      <div class="media-body">
+        <h3 class="media-heading"><a href="https://github.com/OswaldZhuang" target="_blank"><span class="text-dark">Oswald Zhuang</span><small class="ml-1x">Java开发工程师</small></a></h3>
+        <div>一个朴实无华又低调的程序小弟</div>
+      </div>
+    </figure>
+  </div>
+</div>
+
+
+    </div>
+  </article>
+  
+    
+  <section id="comments">
+  	
+
+    
+  </section>
+
+
+  
+</div>
+
+  <nav class="bar bar-footer clearfix" data-stick-bottom>
+  <div class="bar-inner">
+  
+  <ul class="pager pull-left">
+    
+    <li class="prev">
+      <a href="/2020/02/27/Spring%E5%AF%B9bean%E7%9A%84%E5%8A%A0%E8%BD%BD%E9%A1%BA%E5%BA%8F%EF%BC%882%EF%BC%89/" title="Spring对bean的加载顺序（2）"><i class="icon icon-angle-left" aria-hidden="true"></i><span>&nbsp;&nbsp;Newer</span></a>
+    </li>
+    
+    
+    <li class="next">
+      <a href="/2020/02/01/Spring%20bean%E7%9A%84%E8%8E%B7%E5%8F%96%E8%BF%87%E7%A8%8B/" title="Spring bean的获取过程"><span>Older&nbsp;&nbsp;</span><i class="icon icon-angle-right" aria-hidden="true"></i></a>
+    </li>
+    
+    
+  </ul>
+  
+  
+  <!-- Button trigger modal -->
+  <button type="button" class="btn btn-fancy btn-donate pop-onhover bg-gradient-warning" data-toggle="modal" data-target="#donateModal"><span>$</span></button>
+  <!-- <div class="wave-icon wave-icon-danger btn-donate" data-toggle="modal" data-target="#donateModal">
+    <div class="wave-circle"><span class="icon"><i class="icon icon-bill"></i></span></div>
+  </div> -->
+  
+  
+  <div class="bar-right">
+    
+    <div class="share-component" data-sites="weibo,qq,wechat,facebook,twitter" data-mobile-sites="weibo,qq,qzone"></div>
+    
+  </div>
+  </div>
+</nav>
+  
+<!-- Modal -->
+<div class="modal modal-center modal-small modal-xs-full fade" id="donateModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content donate">
+      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      <div class="modal-body">
+        <div class="donate-box">
+          <div class="donate-head">
+            <p>Maybe you could buy me a cup of coffee.</p>
+          </div>
+          <div class="tab-content">
+            <div role="tabpanel" class="tab-pane fade active in" id="alipay">
+              <div class="donate-payimg">
+                <img src="/images/donate/alipayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open alipay app scan this qrcode, buy me a coffee!</p>
+            </div>
+            <div role="tabpanel" class="tab-pane fade" id="wechatpay">
+              <div class="donate-payimg">
+                <img src="/images/donate/wechatpayimg.png" alt="Scan Qrcode" title="Scan" />
+              </div>
+              <p class="text-muted mv">Scan this qrcode</p>
+              <p class="text-grey">Open wechat app scan this qrcode, buy me a coffee!</p>
+            </div>
+          </div>
+          <div class="donate-footer">
+            <ul class="nav nav-tabs nav-justified" role="tablist">
+              <li role="presentation" class="active">
+                <a href="#alipay" id="alipay-tab" role="tab" data-toggle="tab" aria-controls="alipay" aria-expanded="true"><i class="icon icon-alipay"></i> alipay</a>
+              </li>
+              <li role="presentation" class="">
+                <a href="#wechatpay" role="tab" id="wechatpay-tab" data-toggle="tab" aria-controls="wechatpay" aria-expanded="false"><i class="icon icon-wepay"></i> wechat payment</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</main>
+
+  <footer class="footer" itemscope itemtype="http://schema.org/WPFooter">
+	
+	
+    <ul class="social-links">
+    	
+        <li><a href="https://github.com/OswaldZhuang" target="_blank" title="Github" data-toggle=tooltip data-placement=top><i class="icon icon-github"></i></a></li>
+        
+        <li><a href="/atom.xml" target="_blank" title="Rss" data-toggle=tooltip data-placement=top><i class="icon icon-rss"></i></a></li>
+        
+    </ul>
+
+    <div class="copyright">
+    	
+        <div class="publishby">
+		power by hexo
+        </div>
+    </div>
+</footer>
+
+  <script src="//cdn.jsdelivr.net/npm/jquery@1.12.4/dist/jquery.min.js"></script>
+<script>
+window.jQuery || document.write('<script src="js/jquery.min.js"><\/script>')
+</script>
+<script src="/js/plugin.min.js"></script>
+<script src="/js/application.js"></script>
+
+    <script>
+(function (window) {
+    var INSIGHT_CONFIG = {
+        TRANSLATION: {
+            POSTS: 'Posts',
+            PAGES: 'Pages',
+            CATEGORIES: 'Categories',
+            TAGS: 'Tags',
+            UNTITLED: '(Untitled)',
+        },
+        ROOT_URL: '/',
+        CONTENT_URL: '/content.json',
+    };
+    window.INSIGHT_CONFIG = INSIGHT_CONFIG;
+})(window);
+</script>
+<script src="/js/insight.js"></script>
+
+
+
+
+
+   
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+   
+    
+<script src="//cdn.jsdelivr.net/npm/gitment@0.0.3/dist/gitment.browser.min.js"></script>
+<script>
+var gitment = new Gitment({
+  // id默认为当前页面url，如果url后带参数或锚点，gitment要重新初始化
+  // https://github.com/imsun/gitment/issues/55
+  // 解决方案：id:window.location.pathname,或者将id设置为当前页面标题
+  id: 'OswaldZhuang', 
+  owner: 'OswaldZhuang', // 可以是你的GitHub用户名，也可以是github id
+  repo: 'OswaldZhuang.github.io',
+  oauth: {
+    client_id: '5602f040dc37e1c3e43e',
+    client_secret: '6311a0c22ce2c2971d73335783b8168844469f18',
+  }
+})
+gitment.render('comments')
+</script>
+
+
+
+
+
+
+
+
+
+</body>
+</html>
